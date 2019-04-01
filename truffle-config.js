@@ -18,10 +18,12 @@ function truffleConfig({
 } = {}) {
   assert(mnemonic, 'The mnemonic has not been provided')
 
+  console.log('')
   console.log(`Using gas limit: ${gas / 1000} K`)
   console.log(`Using gas price: ${gasPriceGWei} Gwei`)
   console.log(`Optimizer enabled: ${optimizedEnabled}`)
   console.log('Using default mnemonic: %s', mnemonic === DEFAULT_MNEMONIC)
+  console.log('')
 
   const gasPrice = gasPriceGWei * 1e9
   const _getProvider = url => () => new HDWalletProvider({ mnemonic, url })
