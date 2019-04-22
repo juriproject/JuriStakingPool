@@ -4,6 +4,7 @@ const { expect } = require('chai')
 const JuriStakingPool = artifacts.require('./JuriStakingPool.sol')
 const ERC20Mintable = artifacts.require('./lib/ERC20Mintable.sol')
 
+const UPDATE_ITERATION_COUNT = new BN(500)
 const ONE_HUNDRED_ETHER = ether('100')
 const ONE_TOKEN = ether('1')
 const ONE_HUNDRED_TOKEN = ether('100')
@@ -20,12 +21,27 @@ const logPoolState = async pool => {
   const currentTotalStakeToSlash = (await pool.currentTotalStakeToSlash()).toString()
   const currentNonCompliancePenalty = (await pool.currentNonCompliancePenalty()).toString()
   const currentStakingPeriodIndex = (await pool.currentStakingPeriodIndex()).toString()
-  const updateStakingIndex = (await pool.updateStakingIndex()).toString()
+  const updateStaking1Index = (await pool.updateStaking1Index()).toString()
   const updateStaking2Index = (await pool.updateStaking2Index()).toString()
   const complianceDataIndex = (await pool.complianceDataIndex()).toString()
   const ownerFunds = (await pool.ownerFunds()).toString()
   const totalUserStake = (await pool.totalUserStake()).toString()
   const totalAddedStakeNextPeriod = (await pool.totalAddedStakeNextPeriod()).toString()
+  const juriFeesForRound = (await pool.juriFeesForRound()).toString()
+
+  try {
+    const firstUserToAdd = (await pool.usersToAddNextPeriod(0)).toString()
+    logger({ firstUserToAdd })
+  } catch (error) {
+    // ignore (usersToAddNextPeriod array is empty)
+  }
+
+  try {
+    const firstUserToRemove = (await pool.usersToRemoveNextPeriod(0)).toString()
+    logger({ firstUserToRemove })
+  } catch (error) {
+    // ignore (usersToRemoveNextPeriod array is empty)
+  }
 
   logger({
     userCount,
@@ -33,12 +49,13 @@ const logPoolState = async pool => {
     currentTotalStakeToSlash,
     currentNonCompliancePenalty,
     currentStakingPeriodIndex,
-    updateStakingIndex,
+    updateStaking1Index,
     updateStaking2Index,
     complianceDataIndex,
     ownerFunds,
     totalUserStake,
     totalAddedStakeNextPeriod,
+    juriFeesForRound,
   })
 }
 
@@ -101,6 +118,11 @@ const approveAndAddUser = ({ pool, stake, token, user }) =>
     .approve(pool.address, stake, { from: user })
     .then(() => pool.addUserInNextPeriod({ from: user }))
 
+const expectUserCountToBe = async ({ expectedUserCount, pool }) => {
+  const userCount = await pool.getPoolUserCount()
+  expect(userCount).to.be.bignumber.equal(new BN(expectedUserCount))
+}
+
 contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
   let juriStakingPool, token
 
@@ -110,7 +132,6 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
   const defaultMaxNonCompliantPenaltyPercentage = new BN(5)
   const defaultMinStakePerUser = new BN(500) // ONE_TOKEN
   const defaultMaxStakePerUser = ONE_HUNDRED_TOKEN
-  const defaultUpdateIterationCount = new BN(500)
   const defaultMaxTotalStake = TWO_HUNDRED_TOKEN
   const defaultJuriAddress = owner
 
@@ -121,7 +142,6 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
     maxNonCompliantPenaltyPercentage = defaultMaxNonCompliantPenaltyPercentage,
     minStakePerUser = defaultMinStakePerUser,
     maxStakePerUser = defaultMaxStakePerUser,
-    updateIterationCount = defaultUpdateIterationCount,
     maxTotalStake = defaultMaxTotalStake,
     juriAddress = defaultJuriAddress,
   } = {}) => {
@@ -140,7 +160,6 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
       maxNonCompliantPenaltyPercentage,
       minStakePerUser,
       maxStakePerUser,
-      updateIterationCount,
       maxTotalStake,
       juriAddress
     )
@@ -157,8 +176,11 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
     )
 
     await pool.addWasCompliantDataForUsers([])
-    await pool.firstUpdateStakeForNextXAmountOfUsers()
-    await pool.secondUpdateStakeForNextXAmountOfUsers([])
+    await pool.firstUpdateStakeForNextXAmountOfUsers(UPDATE_ITERATION_COUNT)
+    await pool.secondUpdateStakeForNextXAmountOfUsers(
+      UPDATE_ITERATION_COUNT,
+      []
+    )
 
     logger('************ After first period ************')
     await logPoolState(pool)
@@ -173,15 +195,22 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
     // logger('************ IsStaking before round ************')
     // await logIsStaking({ pool, users: poolUsers })
 
+    const removalIndices = await juriStakingPool.getRemovalIndicesInUserList()
+
     const receipt0 = await pool.addWasCompliantDataForUsers(complianceData)
     const gasUsedComplianceData = receipt0.receipt.gasUsed
-    const receipt1 = await pool.firstUpdateStakeForNextXAmountOfUsers()
+    const receipt1 = await pool.firstUpdateStakeForNextXAmountOfUsers(
+      UPDATE_ITERATION_COUNT
+    )
     const gasUsedFirstUpdate = receipt1.receipt.gasUsed
 
     logger('************ State in middle of round ************')
     await logPoolState(pool)
 
-    const receipt2 = await pool.secondUpdateStakeForNextXAmountOfUsers([])
+    const receipt2 = await pool.secondUpdateStakeForNextXAmountOfUsers(
+      UPDATE_ITERATION_COUNT,
+      removalIndices
+    )
     const gasUsedSecondUpdate = receipt2.receipt.gasUsed
 
     logger({
@@ -240,13 +269,6 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
       expect(maxStakePerUser).to.be.bignumber.equal(defaultMaxStakePerUser)
     })
 
-    it('sets updateIterationCount', async () => {
-      const updateIterationCount = await juriStakingPool.updateIterationCount()
-      expect(updateIterationCount).to.be.bignumber.equal(
-        defaultUpdateIterationCount
-      )
-    })
-
     it('sets maxTotalStake', async () => {
       const maxTotalStake = await juriStakingPool.maxTotalStake()
       expect(maxTotalStake).to.be.bignumber.equal(defaultMaxTotalStake)
@@ -299,9 +321,9 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
 
         for (let j = 0; j < poolRounds; j++) {
           let stakeToSlash = new BN(0)
-          let totalPayout = totalStake.sub(
-            totalStake.mul(defaultFeePercentage).div(new BN(100))
-          )
+          let totalPayout = totalStake
+            .mul(defaultFeePercentage)
+            .div(new BN(100))
 
           poolUsers.forEach((_, i) => {
             if (complianceData[j][i]) {
@@ -311,31 +333,46 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
               const gain = newStake.sub(expectedUserBalances[i])
               totalPayout = totalPayout.add(gain)
             } else {
-              stakeToSlash = stakeToSlash.add(new BN(poolStakes[i]))
+              stakeToSlash = stakeToSlash.add(expectedUserBalances[i])
             }
           })
 
-          const nonCompliantPenaltiy = stakeToSlash.gt(new BN(0))
+          const nonCompliantPenalty = stakeToSlash.gt(new BN(0))
             ? Math.min(
                 totalPayout.mul(new BN(100)).div(stakeToSlash),
                 defaultMaxNonCompliantPenaltyPercentage
               )
             : defaultMaxNonCompliantPenaltyPercentage
           const nonCompliantFactor = new BN(100).sub(
-            new BN(nonCompliantPenaltiy)
+            new BN(nonCompliantPenalty)
           )
 
           const slashedStake = stakeToSlash
-            .mul(new BN(100).sub(new BN(nonCompliantPenaltiy)))
+            .mul(new BN(100).sub(new BN(nonCompliantPenalty)))
             .div(new BN(100))
           const totalStakeUsedForPayouts = stakeToSlash.sub(slashedStake)
           const underwriterLiability = totalPayout.sub(totalStakeUsedForPayouts)
-          totalStake = totalStake.add(underwriterLiability)
+          const juriFeesForRound = totalStake
+            .mul(defaultFeePercentage)
+            .div(new BN(100))
+          totalStake = totalStake
+            .add(underwriterLiability)
+            .sub(juriFeesForRound)
 
           poolUsers.forEach((_, i) => {
             expectedUserBalances[i] = expectedUserBalances[i]
               .mul(complianceData[j][i] ? compliantFactor : nonCompliantFactor)
               .div(new BN(100))
+
+            logger({
+              stakeToSlash: stakeToSlash.toNumber(),
+              totalPayout: totalPayout.toNumber(),
+              nonCompliantPenalty: nonCompliantPenalty,
+              maxNonCompliantFactor: defaultMaxNonCompliantPenaltyPercentage.toNumber(),
+              PoolRound: j,
+              User: i,
+              ExpectedBalance: expectedUserBalances[i].toNumber(),
+            })
           })
         }
 
@@ -356,6 +393,64 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
           }),
           'You need to pass the minStakePerUser to add yourself!'
         )
+      })
+    })
+
+    describe('when removing users', async () => {
+      it('removes them after a round', async () => {
+        let poolUsers = [user1, user2, user3, user4]
+        const poolStakes = [1000, 1000, 1000, 1000]
+
+        await initialPoolSetup({ pool: juriStakingPool, poolUsers, poolStakes })
+
+        const complianceData = [
+          [false, false, true, true],
+          [true, true],
+          [false, false],
+          [true],
+        ]
+        const poolRounds = 4
+
+        for (let i = 0; i < poolRounds; i++) {
+          switch (i) {
+            case 0:
+              await juriStakingPool.removeUserInNextPeriod({ from: user1 })
+              await juriStakingPool.removeUserInNextPeriod({ from: user2 })
+              break
+
+            case 1:
+              poolUsers = [user3, user4]
+              break
+
+            case 2:
+              await juriStakingPool.removeUserInNextPeriod({ from: user3 })
+              break
+
+            case 3:
+              poolUsers = [user4]
+              await juriStakingPool.removeUserInNextPeriod({ from: user4 })
+              break
+
+            default:
+              break
+          }
+
+          await expectUserCountToBe({
+            pool: juriStakingPool,
+            expectedUserCount: poolUsers.length,
+          })
+
+          await runPoolRound({
+            complianceData: complianceData[i],
+            pool: juriStakingPool,
+            poolUsers,
+          })
+        }
+
+        await expectUserCountToBe({
+          pool: juriStakingPool,
+          expectedUserCount: 0,
+        })
       })
     })
 
