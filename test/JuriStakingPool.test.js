@@ -1,132 +1,31 @@
-const { BN, ether, shouldFail } = require('openzeppelin-test-helpers')
 const { expect } = require('chai')
+const { BN, ether, shouldFail, time } = require('openzeppelin-test-helpers')
+
+const {
+  approveAndAddUser,
+  asyncForEach,
+  expectUserCountToBe,
+  logComplianceDataForFirstPeriods,
+  logFirstUsers,
+  logger,
+  // logIsStaking,
+  logPoolState,
+  logUserBalancesForFirstPeriods,
+} = require('./helpers')
 
 const JuriStakingPool = artifacts.require('./JuriStakingPool.sol')
 const ERC20Mintable = artifacts.require('./lib/ERC20Mintable.sol')
 
 const UPDATE_ITERATION_COUNT = new BN(500)
 const ONE_HUNDRED_ETHER = ether('100')
-const ONE_TOKEN = ether('1')
+// const ONE_TOKEN = ether('1')
 const ONE_HUNDRED_TOKEN = ether('100')
 const TWO_HUNDRED_TOKEN = ether('200')
-const ONE_DAY = 60 * 60 * 24
-
-const logger = msg => {
-  if (process.env.DEBUG === 'true') console.log(msg)
-}
-
-const logPoolState = async pool => {
-  const userCount = (await pool.getPoolUserCount()).toString()
-  const currentTotalPayout = (await pool.currentTotalPayout()).toString()
-  const currentTotalStakeToSlash = (await pool.currentTotalStakeToSlash()).toString()
-  const currentNonCompliancePenalty = (await pool.currentNonCompliancePenalty()).toString()
-  const currentStakingPeriodIndex = (await pool.currentStakingPeriodIndex()).toString()
-  const updateStaking1Index = (await pool.updateStaking1Index()).toString()
-  const updateStaking2Index = (await pool.updateStaking2Index()).toString()
-  const complianceDataIndex = (await pool.complianceDataIndex()).toString()
-  const ownerFunds = (await pool.ownerFunds()).toString()
-  const totalUserStake = (await pool.totalUserStake()).toString()
-  const totalAddedStakeNextPeriod = (await pool.totalAddedStakeNextPeriod()).toString()
-  const juriFeesForRound = (await pool.juriFeesForRound()).toString()
-
-  try {
-    const firstUserToAdd = (await pool.usersToAddNextPeriod(0)).toString()
-    logger({ firstUserToAdd })
-  } catch (error) {
-    // ignore (usersToAddNextPeriod array is empty)
-  }
-
-  try {
-    const firstUserToRemove = (await pool.usersToRemoveNextPeriod(0)).toString()
-    logger({ firstUserToRemove })
-  } catch (error) {
-    // ignore (usersToRemoveNextPeriod array is empty)
-  }
-
-  logger({
-    userCount,
-    currentTotalPayout,
-    currentTotalStakeToSlash,
-    currentNonCompliancePenalty,
-    currentStakingPeriodIndex,
-    updateStaking1Index,
-    updateStaking2Index,
-    complianceDataIndex,
-    ownerFunds,
-    totalUserStake,
-    totalAddedStakeNextPeriod,
-    juriFeesForRound,
-  })
-}
-
-const logIsStaking = async ({ pool, users }) => {
-  const userIsStakingList = await Promise.all(
-    users.map(user => pool.userIsStaking(user).then(r => r.toString()))
-  )
-
-  const userIsStakingNextPeriodList = await Promise.all(
-    users.map(user =>
-      pool.userIsStakingNextPeriod(user).then(r => r.toString())
-    )
-  )
-
-  logger({ userIsStakingList, userIsStakingNextPeriodList })
-}
-
-const logUserBalancesForFirstPeriods = async ({ pool, users }) => {
-  const stakesAt0 = await Promise.all(
-    users.map(user => pool.stakePerUserAtIndex(0, user).then(r => r.toString()))
-  )
-
-  const stakesAt1 = await Promise.all(
-    users.map(user => pool.stakePerUserAtIndex(1, user).then(r => r.toString()))
-  )
-
-  const stakesAt2 = await Promise.all(
-    users.map(user => pool.stakePerUserAtIndex(2, user).then(r => r.toString()))
-  )
-
-  const stakesAt3 = await Promise.all(
-    users.map(user => pool.stakePerUserAtIndex(3, user).then(r => r.toString()))
-  )
-
-  const stakesAt4 = await Promise.all(
-    users.map(user => pool.stakePerUserAtIndex(4, user).then(r => r.toString()))
-  )
-
-  const stakesAt5 = await Promise.all(
-    users.map(user => pool.stakePerUserAtIndex(5, user).then(r => r.toString()))
-  )
-
-  const stakesAt6 = await Promise.all(
-    users.map(user => pool.stakePerUserAtIndex(6, user).then(r => r.toString()))
-  )
-
-  logger({
-    stakesAt0,
-    stakesAt1,
-    stakesAt2,
-    stakesAt3,
-    stakesAt4,
-    stakesAt5,
-    stakesAt6,
-  })
-}
-
-const approveAndAddUser = ({ pool, stake, token, user }) =>
-  token
-    .approve(pool.address, stake, { from: user })
-    .then(() => pool.addUserInNextPeriod({ from: user }))
-
-const expectUserCountToBe = async ({ expectedUserCount, pool }) => {
-  const userCount = await pool.getPoolUserCount()
-  expect(userCount).to.be.bignumber.equal(new BN(expectedUserCount))
-}
 
 contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
   let juriStakingPool, token
 
-  const defaultPeriodLength = new BN(7 * ONE_DAY)
+  const defaultPeriodLength = time.duration.days(7)
   const defaultFeePercentage = new BN(1)
   const defaultCompliantGainPercentage = new BN(4)
   const defaultMaxNonCompliantPenaltyPercentage = new BN(5)
@@ -152,8 +51,11 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
       )
     )
 
+    const startTime = (await time.latest()).add(time.duration.seconds(20))
+
     juriStakingPool = await JuriStakingPool.new(
       token.address,
+      startTime,
       periodLength,
       feePercentage,
       compliantGainPercentage,
@@ -169,13 +71,20 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
     await token.approve(pool.address, ONE_HUNDRED_ETHER)
     await pool.addOwnerFunds()
 
-    await Promise.all(
-      poolUsers.map((user, i) =>
-        approveAndAddUser({ pool, stake: poolStakes[i], token, user })
-      )
-    )
+    await asyncForEach({
+      array: poolUsers,
+      callback: async (user, i) =>
+        approveAndAddUser({
+          pool,
+          stake: poolStakes[i],
+          token,
+          user,
+        }),
+    })
 
-    await pool.addWasCompliantDataForUsers([])
+    await time.increase(defaultPeriodLength)
+
+    await pool.addWasCompliantDataForUsers(UPDATE_ITERATION_COUNT, [])
     await pool.firstUpdateStakeForNextXAmountOfUsers(UPDATE_ITERATION_COUNT)
     await pool.secondUpdateStakeForNextXAmountOfUsers(
       UPDATE_ITERATION_COUNT,
@@ -197,7 +106,19 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
 
     const removalIndices = await juriStakingPool.getRemovalIndicesInUserList()
 
-    const receipt0 = await pool.addWasCompliantDataForUsers(complianceData)
+    await time.increase(defaultPeriodLength)
+    const receipt0 = await pool.addWasCompliantDataForUsers(
+      UPDATE_ITERATION_COUNT,
+      complianceData
+    )
+
+    await logFirstUsers({ pool, userCount: poolUsers.length })
+
+    await logComplianceDataForFirstPeriods({
+      pool,
+      users: poolUsers,
+    })
+
     const gasUsedComplianceData = receipt0.receipt.gasUsed
     const receipt1 = await pool.firstUpdateStakeForNextXAmountOfUsers(
       UPDATE_ITERATION_COUNT
@@ -235,48 +156,37 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
   describe('when staking', async () => {
     beforeEach(async () => await deployJuriStakingPool())
 
-    it('sets periodLength', async () => {
-      const periodLength = await juriStakingPool.periodLength()
+    it('sets poolDefinition', async () => {
+      const poolDefinition = await juriStakingPool.poolDefinition()
+      const {
+        compliantGainPercentage,
+        feePercentage,
+        maxNonCompliantPenaltyPercentage,
+        maxStakePerUser,
+        minStakePerUser,
+        maxTotalStake,
+        periodLength,
+        startTime,
+      } = poolDefinition
+
       expect(periodLength).to.be.bignumber.equal(defaultPeriodLength)
-    })
-
-    it('sets feePercentage', async () => {
-      const feePercentage = await juriStakingPool.feePercentage()
       expect(feePercentage).to.be.bignumber.equal(defaultFeePercentage)
-    })
-
-    it('sets compliantGainPercentage', async () => {
-      const compliantGainPercentage = await juriStakingPool.compliantGainPercentage()
       expect(compliantGainPercentage).to.be.bignumber.equal(
         defaultCompliantGainPercentage
       )
-    })
-
-    it('sets maxNonCompliantPenaltyPercentage', async () => {
-      const maxNonCompliantPenaltyPercentage = await juriStakingPool.maxNonCompliantPenaltyPercentage()
       expect(maxNonCompliantPenaltyPercentage).to.be.bignumber.equal(
         defaultMaxNonCompliantPenaltyPercentage
       )
-    })
-
-    it('sets minStakePerUser', async () => {
-      const minStakePerUser = await juriStakingPool.minStakePerUser()
       expect(minStakePerUser).to.be.bignumber.equal(defaultMinStakePerUser)
-    })
-
-    it('sets maxStakePerUser', async () => {
-      const maxStakePerUser = await juriStakingPool.maxStakePerUser()
       expect(maxStakePerUser).to.be.bignumber.equal(defaultMaxStakePerUser)
-    })
-
-    it('sets maxTotalStake', async () => {
-      const maxTotalStake = await juriStakingPool.maxTotalStake()
       expect(maxTotalStake).to.be.bignumber.equal(defaultMaxTotalStake)
-    })
 
-    it('sets juriAddress', async () => {
-      const maxTotalStake = await juriStakingPool.maxTotalStake()
-      expect(maxTotalStake).to.be.bignumber.equal(defaultMaxTotalStake)
+      const expectedEarliestTime = await time.latest()
+      const expectedLatestTime = (await time.latest()).add(
+        time.duration.seconds(40)
+      )
+      expect(startTime).to.be.bignumber.gt(expectedEarliestTime)
+      expect(startTime).to.be.bignumber.lt(expectedLatestTime)
     })
 
     describe('when running pool rounds', async () => {
