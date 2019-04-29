@@ -7,8 +7,44 @@ const asyncForEach = async ({ array, callback }) => {
   }
 }
 
-const logger = msg => {
-  if (process.env.DEBUG === 'true') console.log(msg)
+const logger = (msg, { logLevel = 2 } = {}) => {
+  if (process.env.LOG_LEVEL === '2' && logLevel <= 2) console.log(msg)
+  if (process.env.LOG_LEVEL === '1' && logLevel <= 1) console.log(msg)
+  if (process.env.LOG_LEVEL === '0' && logLevel <= 0) console.log(msg)
+}
+
+const logCurrentRound = ({
+  juriFees,
+  nonCompliancePenalty,
+  roundIndex,
+  totalPayout,
+  totalStakeToSlash,
+  useMaxNonCompliancy,
+}) => {
+  logger('currentRound.roundIndex ' + roundIndex.toString(), {
+    logLevel: 1,
+  })
+  logger('currentRound.totalStakeToSlash: ' + totalStakeToSlash.toString(), {
+    logLevel: 1,
+  })
+  logger(
+    'currentRound.nonCompliancePenalty: ' + nonCompliancePenalty.toString(),
+    { logLevel: 1 }
+  )
+  logger('currentRound.totalPayout: ' + totalPayout.toString(), {
+    logLevel: 1,
+  })
+  logger('currentRound.useMaxNonCompliancy: ' + useMaxNonCompliancy, {
+    logLevel: 1,
+  })
+  logger('currentRound.juriFees: ' + juriFees.toString(), {
+    logLevel: 1,
+  })
+}
+
+const logNextRound = ({ totalAddedStake, totalRemovedStake }) => {
+  logger('nextRound.totalAddedStake: ' + totalAddedStake.toString())
+  logger('nextRound.totalRemovedStake: ' + totalRemovedStake.toString())
 }
 
 const logPoolState = async pool => {
@@ -18,28 +54,33 @@ const logPoolState = async pool => {
   const complianceDataIndex = (await pool.complianceDataIndex()).toString()
   const ownerFunds = (await pool.ownerFunds()).toString()
   const totalUserStake = (await pool.totalUserStake()).toString()
+  const removalIndices = await pool.getRemovalIndicesInUserList()
 
   try {
-    const firstUserToAdd = (await pool.usersToAddNextPeriod(0)).toString()
+    const firstUserToAdd = (await pool.getUserToBeAddedNextPeriod(0)).toString()
     logger({ firstUserToAdd })
   } catch (error) {
     // ignore (usersToAddNextPeriod array is empty)
   }
 
   try {
-    const firstUserToRemove = (await pool.usersToRemoveNextPeriod(0)).toString()
+    const firstUserToRemove = (await pool.getUserToBeRemovedNextPeriod(
+      0
+    )).toString()
     logger({ firstUserToRemove })
   } catch (error) {
     // ignore (usersToRemoveNextPeriod array is empty)
   }
 
+  logCurrentRound(currentStakingRound)
+  logNextRound(nextStakingRound)
+  logger({ totalUserStake }, { logLevel: 1 })
+
   logger({
-    currentStakingRound,
-    nextStakingRound,
     userCount,
     complianceDataIndex,
     ownerFunds,
-    totalUserStake,
+    removalIndices,
   })
 }
 
@@ -81,11 +122,12 @@ const logUserBalancesForFirstPeriods = async ({ pool, users }) => {
     )
   )
 
-  logger({ stakesAtCurrentRound, stakesAtNextRound })
+  logger({ stakesAtCurrentRound }, { logLevel: 0 })
+  logger({ stakesAtNextRound })
 }
 
 const logComplianceDataForFirstPeriods = async ({ pool, users }) => {
-  const stakePeriodCount = 7
+  const stakePeriodCount = 4
 
   for (let i = 0; i < stakePeriodCount; i++) {
     const complianceDataAt = await Promise.all(

@@ -96,11 +96,11 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
   }
 
   const runPoolRound = async ({ complianceData, pool, poolUsers }) => {
-    logger('************ Balances before round ************')
+    /* logger('************ Balances before round ************')
     await logUserBalancesForFirstPeriods({
       pool,
       users: poolUsers,
-    })
+    }) */
     // logger('************ IsStaking before round ************')
     // await logIsStaking({ pool, users: poolUsers })
 
@@ -125,7 +125,9 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
     )
     const gasUsedFirstUpdate = receipt1.receipt.gasUsed
 
-    logger('************ State in middle of round ************')
+    logger('************ State in middle of round ************', {
+      logLevel: 1,
+    })
     await logPoolState(pool)
 
     const receipt2 = await pool.secondUpdateStakeForNextXAmountOfUsers(
@@ -143,7 +145,7 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
     // logger('************ IsStaking after round ************')
     // await logIsStaking({ pool, users: poolUsers })
 
-    logger('************ State after round ************')
+    logger('************ State after round ************', { logLevel: 1 })
     await logPoolState(pool)
 
     logger('************ Balances after round ************')
@@ -227,9 +229,12 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
           expectedUserBalances.push(new BN(poolStakes[i]))
         )
 
-        let totalStake = new BN(poolStakes.reduce((a, b) => a + b, 0))
-
         for (let j = 0; j < poolRounds; j++) {
+          const totalStake = expectedUserBalances.reduce(
+            (a, b) => a.add(b),
+            new BN(0)
+          )
+
           let stakeToSlash = new BN(0)
           let totalPayout = totalStake
             .mul(defaultFeePercentage)
@@ -247,42 +252,58 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
             }
           })
 
-          const nonCompliantPenalty = stakeToSlash.gt(new BN(0))
-            ? Math.min(
-                totalPayout.mul(new BN(100)).div(stakeToSlash),
-                defaultMaxNonCompliantPenaltyPercentage
-              )
-            : defaultMaxNonCompliantPenaltyPercentage
-          const nonCompliantFactor = new BN(100).sub(
-            new BN(nonCompliantPenalty)
-          )
+          const useMaxNonCompliancy =
+            stakeToSlash.eq(new BN(0)) ||
+            totalPayout.mul(new BN(100)).div(stakeToSlash) >
+              defaultMaxNonCompliantPenaltyPercentage
 
-          const slashedStake = stakeToSlash
-            .mul(new BN(100).sub(new BN(nonCompliantPenalty)))
-            .div(new BN(100))
-          const totalStakeUsedForPayouts = stakeToSlash.sub(slashedStake)
-          const underwriterLiability = totalPayout.sub(totalStakeUsedForPayouts)
           const juriFeesForRound = totalStake
             .mul(defaultFeePercentage)
             .div(new BN(100))
-          totalStake = totalStake
-            .add(underwriterLiability)
-            .sub(juriFeesForRound)
 
           poolUsers.forEach((_, i) => {
-            expectedUserBalances[i] = expectedUserBalances[i]
-              .mul(complianceData[j][i] ? compliantFactor : nonCompliantFactor)
-              .div(new BN(100))
+            const oldBalance = expectedUserBalances[i]
 
-            logger({
-              stakeToSlash: stakeToSlash.toNumber(),
-              totalPayout: totalPayout.toNumber(),
-              nonCompliantPenalty: nonCompliantPenalty,
-              maxNonCompliantFactor: defaultMaxNonCompliantPenaltyPercentage.toNumber(),
-              PoolRound: j,
-              User: i,
-              ExpectedBalance: expectedUserBalances[i].toNumber(),
-            })
+            if (useMaxNonCompliancy) {
+              const nonCompliantFactor = new BN(100).sub(
+                new BN(defaultMaxNonCompliantPenaltyPercentage)
+              )
+              expectedUserBalances[i] = oldBalance
+                .mul(
+                  complianceData[j][i] ? compliantFactor : nonCompliantFactor
+                )
+                .div(new BN(100))
+            } else {
+              expectedUserBalances[i] = oldBalance
+                .mul(stakeToSlash.sub(totalPayout))
+                .div(stakeToSlash)
+            }
+
+            logger(
+              {
+                PoolRound: j,
+                User: i,
+                ExpectedBalance: expectedUserBalances[i].toNumber(),
+              },
+              { logLevel: 0 }
+            )
+
+            const totalStakeAfter = expectedUserBalances.reduce(
+              (a, b) => a.add(b),
+              new BN(0)
+            )
+
+            logger(
+              {
+                stakeToSlash: stakeToSlash.toString(),
+                totalPayout: totalPayout.toString(),
+                useMaxNonCompliancy,
+                maxNonCompliantFactor: defaultMaxNonCompliantPenaltyPercentage.toString(),
+                juriFeesForRound: juriFeesForRound.toString(),
+                totalStake: totalStakeAfter.toString(),
+              },
+              { logLevel: 1 }
+            )
           })
         }
 
