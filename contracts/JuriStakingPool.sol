@@ -50,8 +50,6 @@ contract JuriStakingPool is Ownable {
         mapping (address => uint256) addedUserStakes;
         address[] usersToAdd;
         address[] usersToRemove;
-        uint256 totalAddedStake;
-        uint256 totalRemovedStake;
     }
 
     IERC20 public token;
@@ -60,7 +58,7 @@ contract JuriStakingPool is Ownable {
 
     // Pool state
     CurrentStakingRound public currentStakingRound;
-    NextStakingRound public nextStakingRound;
+    NextStakingRound nextStakingRound;
 
     address[] public users;
     uint256 public ownerFunds;
@@ -236,6 +234,8 @@ contract JuriStakingPool is Ownable {
         atStage(Stages.AWAITING_COMPLIANCE_DATA)
         /* TODO isPoolUser */
     {
+        // TODO think about time restrictions:
+        // what if compliance data is not added in time?
         uint256 stakeInCurrentPeriod = currentStakingRound.userStakes[msg.sender];
         uint256 stakeInNextPeriod = nextStakingRound.addedUserStakes[msg.sender];
         uint256 addedStakeAmount = token.allowance(msg.sender, address(this));
@@ -286,8 +286,6 @@ contract JuriStakingPool is Ownable {
         }
 
         uint256 newStakeBalanceInNextPeriod = stakeInNextPeriod.add(adjustedAddedStake);
-        nextStakingRound.totalAddedStake
-            = nextStakingRound.totalAddedStake.add(adjustedAddedStake);
         nextStakingRound.addedUserStakes[msg.sender]
             = newStakeBalanceInNextPeriod;
     }
@@ -649,12 +647,14 @@ contract JuriStakingPool is Ownable {
 
     function _moveStakeToNextPeriod(address _user, uint256 _newStake) private {
         uint256 oldStake = currentStakingRound.userStakes[_user];
-        currentStakingRound.userStakes[_user]
-            = nextStakingRound.addedUserStakes[_user].add(_newStake);
+        uint256 updatedStake = nextStakingRound.addedUserStakes[_user].add(_newStake);
+
+        currentStakingRound.userStakes[_user] = updatedStake;
         nextStakingRound.addedUserStakes[_user] = 0;
-        totalUserStake = _newStake > oldStake
-            ? totalUserStake.add(_newStake.sub(oldStake))
-            : totalUserStake.sub(oldStake.sub(_newStake));
+
+        totalUserStake = updatedStake > oldStake
+            ? totalUserStake.add(updatedStake.sub(oldStake))
+            : totalUserStake.sub(oldStake.sub(updatedStake));
     }
 
     function _withdrawFromCurrentPeriod(
@@ -717,11 +717,6 @@ contract JuriStakingPool is Ownable {
             _withdrawFromCurrentPeriod(_user, withdrawFromCurrentPeriod, _canWithdrawAll);
         }
 
-        if (!_canWithdrawAll) {
-            nextStakingRound.totalRemovedStake = nextStakingRound.totalRemovedStake
-                .add(_amount);
-        }
-
         require(
             token.transfer(_user, _amount),
             'Token transfer failed!'
@@ -735,7 +730,6 @@ contract JuriStakingPool is Ownable {
             users.push(newUser);
             _moveStakeToNextPeriod(newUser, 0);
 
-            totalUserStake = totalUserStake.add(_getCurrentStakeForUser(newUser));
             currentStakingRound.userIsStaking[newUser]
                 = nextStakingRound.userIsStaking[newUser];
         }
@@ -766,8 +760,8 @@ contract JuriStakingPool is Ownable {
         users.length--;
     }
 
-    function _ensureContractIsFunded(uint256 _totalUserStake) private view {
-        uint256 maxPayout = _totalUserStake.mul(
+    function _ensureContractIsFundedForNextRound() private view {
+        uint256 maxPayout = totalUserStake.mul(
             uint256(100).add(poolDefinition.compliantGainPercentage)
         );
         require(
@@ -778,6 +772,7 @@ contract JuriStakingPool is Ownable {
 
     function _computeNewCompliantStake(uint256 _userStake)
         private
+        view
         returns (uint256)
     {
         return _userStake
@@ -785,7 +780,7 @@ contract JuriStakingPool is Ownable {
             .div(100);
     }
 
-    function _computeUseMaxNonCompliancy() private returns (bool) {
+    function _computeUseMaxNonCompliancy() private view returns (bool) {
         if (currentStakingRound.totalStakeToSlash == 0) {
             // avoid division by 0
             return false;
@@ -799,6 +794,7 @@ contract JuriStakingPool is Ownable {
     }
     function _computeNewNonCompliantStake(uint256 _userStake)
         private
+        view
         returns (uint256)
     {
         if (currentStakingRound.useMaxNonCompliancy) {
@@ -827,7 +823,7 @@ contract JuriStakingPool is Ownable {
         currentStakingRound.userIsStaking[_user] = nextStakingRound.userIsStaking[_user];
     }
 
-    function _computeJuriFees() private returns (uint256) {
+    function _computeJuriFees() private view returns (uint256) {
         return totalUserStake.mul(poolDefinition.feePercentage).div(100);
     }
 
@@ -864,25 +860,19 @@ contract JuriStakingPool is Ownable {
 
         nextStakingRound = NextStakingRound(
             new address[](0),
-            new address[](0),
-            0,
-            0
+            new address[](0)
         );
     }
 
     function _resetPoolForNextPeriod(uint256[] memory _removalIndices) private {
-        totalUserStake = totalUserStake.add(nextStakingRound.totalAddedStake);
-        totalUserStake = totalUserStake.sub(nextStakingRound.totalRemovedStake);
-
-        _ensureContractIsFunded(totalUserStake);
-
         _addPendingUsers();
         _removePendingUsers(_removalIndices);
+
         _setStakingPeriodVariables(currentStakingRound.roundIndex + 1);
+        _ensureContractIsFundedForNextRound();
 
         // for next round
         currentStakingRound.juriFees = _computeJuriFees();
-        currentStakingRound.totalPayout
-             = currentStakingRound.juriFees;
+        currentStakingRound.totalPayout = currentStakingRound.juriFees;
     }
 }

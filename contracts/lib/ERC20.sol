@@ -83,6 +83,11 @@ contract ERC20 is IERC20 {
      * @param value uint256 the amount of tokens to be transferred
      */
     function transferFrom(address from, address to, uint256 value) public returns (bool) {
+        require(
+            _allowed[from][msg.sender] >= value,
+            'Cannot transfer more than approved!'
+        );
+
         _transfer(from, to, value);
         _approve(from, msg.sender, _allowed[from][msg.sender].sub(value));
         return true;
@@ -126,6 +131,7 @@ contract ERC20 is IERC20 {
      */
     function _transfer(address from, address to, uint256 value) internal {
         require(to != address(0), 'Cannot transfer to 0 address!');
+        require(_balances[from] >= value, 'Cannot transfer more than available!');
 
         _balances[from] = _balances[from].sub(value);
         _balances[to] = _balances[to].add(value);

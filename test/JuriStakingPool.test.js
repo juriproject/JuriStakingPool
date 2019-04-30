@@ -1,10 +1,24 @@
 const { expect } = require('chai')
-const { BN, ether, shouldFail, time } = require('openzeppelin-test-helpers')
+const { BN, shouldFail, time } = require('openzeppelin-test-helpers')
+
+const {
+  defaultPeriodLength,
+  defaultFeePercentage,
+  defaultCompliantGainPercentage,
+  defaultMaxNonCompliantPenaltyPercentage,
+  defaultMinStakePerUser,
+  defaultMaxStakePerUser,
+  defaultMaxTotalStake,
+  defaultUpdateIterationCount,
+  ONE_HUNDRED_TOKEN,
+  setDefaultJuriAddress,
+} = require('./defaults')
 
 const {
   approveAndAddUser,
-  asyncForEach,
+  deployJuriStakingPool,
   expectUserCountToBe,
+  initialPoolSetup,
   logComplianceDataForFirstPeriods,
   logFirstUsers,
   logger,
@@ -13,87 +27,12 @@ const {
   logUserBalancesForFirstPeriods,
 } = require('./helpers')
 
-const JuriStakingPool = artifacts.require('./JuriStakingPool.sol')
-const ERC20Mintable = artifacts.require('./lib/ERC20Mintable.sol')
-
-const UPDATE_ITERATION_COUNT = new BN(500)
-const ONE_HUNDRED_ETHER = ether('100')
-// const ONE_TOKEN = ether('1')
-const ONE_HUNDRED_TOKEN = ether('100')
-const TWO_HUNDRED_TOKEN = ether('200')
+const itRunsFirstUpdateCorrectly = require('./firstUpdateStakeForNextXAmountOfUsers.test')
 
 contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
-  let juriStakingPool, token
+  let juriStakingPool
 
-  const defaultPeriodLength = time.duration.days(7)
-  const defaultFeePercentage = new BN(1)
-  const defaultCompliantGainPercentage = new BN(4)
-  const defaultMaxNonCompliantPenaltyPercentage = new BN(5)
-  const defaultMinStakePerUser = new BN(500) // ONE_TOKEN
-  const defaultMaxStakePerUser = ONE_HUNDRED_TOKEN
-  const defaultMaxTotalStake = TWO_HUNDRED_TOKEN
-  const defaultJuriAddress = owner
-
-  const deployJuriStakingPool = async ({
-    periodLength = defaultPeriodLength,
-    feePercentage = defaultFeePercentage,
-    compliantGainPercentage = defaultCompliantGainPercentage,
-    maxNonCompliantPenaltyPercentage = defaultMaxNonCompliantPenaltyPercentage,
-    minStakePerUser = defaultMinStakePerUser,
-    maxStakePerUser = defaultMaxStakePerUser,
-    maxTotalStake = defaultMaxTotalStake,
-    juriAddress = defaultJuriAddress,
-  } = {}) => {
-    token = await ERC20Mintable.new()
-    await Promise.all(
-      [owner, user1, user2, user3, user4].map(user =>
-        token.mint(user, TWO_HUNDRED_TOKEN)
-      )
-    )
-
-    const startTime = (await time.latest()).add(time.duration.seconds(20))
-
-    juriStakingPool = await JuriStakingPool.new(
-      token.address,
-      startTime,
-      periodLength,
-      feePercentage,
-      compliantGainPercentage,
-      maxNonCompliantPenaltyPercentage,
-      minStakePerUser,
-      maxStakePerUser,
-      maxTotalStake,
-      juriAddress
-    )
-  }
-
-  const initialPoolSetup = async ({ pool, poolUsers, poolStakes }) => {
-    await token.approve(pool.address, ONE_HUNDRED_ETHER)
-    await pool.addOwnerFunds()
-
-    await asyncForEach({
-      array: poolUsers,
-      callback: async (user, i) =>
-        approveAndAddUser({
-          pool,
-          stake: poolStakes[i],
-          token,
-          user,
-        }),
-    })
-
-    await time.increase(defaultPeriodLength)
-
-    await pool.addWasCompliantDataForUsers(UPDATE_ITERATION_COUNT, [])
-    await pool.firstUpdateStakeForNextXAmountOfUsers(UPDATE_ITERATION_COUNT)
-    await pool.secondUpdateStakeForNextXAmountOfUsers(
-      UPDATE_ITERATION_COUNT,
-      []
-    )
-
-    logger('************ After first period ************')
-    await logPoolState(pool)
-  }
+  beforeEach(() => setDefaultJuriAddress(owner))
 
   const runPoolRound = async ({ complianceData, pool, poolUsers }) => {
     /* logger('************ Balances before round ************')
@@ -108,7 +47,7 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
 
     await time.increase(defaultPeriodLength)
     const receipt0 = await pool.addWasCompliantDataForUsers(
-      UPDATE_ITERATION_COUNT,
+      defaultUpdateIterationCount,
       complianceData
     )
 
@@ -121,7 +60,7 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
 
     const gasUsedComplianceData = receipt0.receipt.gasUsed
     const receipt1 = await pool.firstUpdateStakeForNextXAmountOfUsers(
-      UPDATE_ITERATION_COUNT
+      defaultUpdateIterationCount
     )
     const gasUsedFirstUpdate = receipt1.receipt.gasUsed
 
@@ -131,7 +70,7 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
     await logPoolState(pool)
 
     const receipt2 = await pool.secondUpdateStakeForNextXAmountOfUsers(
-      UPDATE_ITERATION_COUNT,
+      defaultUpdateIterationCount,
       removalIndices
     )
     const gasUsedSecondUpdate = receipt2.receipt.gasUsed
@@ -156,7 +95,14 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
   }
 
   describe('when staking', async () => {
-    beforeEach(async () => await deployJuriStakingPool())
+    beforeEach(async () => {
+      const deployedContracts = await deployJuriStakingPool({
+        poolUsers: [owner, user1, user2, user3, user4],
+      })
+
+      juriStakingPool = deployedContracts.pool
+      token = deployedContracts.token
+    })
 
     it('sets poolDefinition', async () => {
       const poolDefinition = await juriStakingPool.poolDefinition()
@@ -191,12 +137,19 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
       expect(startTime).to.be.bignumber.lt(expectedLatestTime)
     })
 
+    itRunsFirstUpdateCorrectly([owner, user1, user2, user3, user4])
+
     describe('when running pool rounds', async () => {
       it('updates user stakes', async () => {
         const poolUsers = [user1, user2, user3, user4]
         const poolStakes = [1000, 1000, 1000, 1000]
 
-        await initialPoolSetup({ pool: juriStakingPool, poolUsers, poolStakes })
+        await initialPoolSetup({
+          pool: juriStakingPool,
+          poolUsers,
+          poolStakes,
+          token,
+        })
 
         const complianceData = [
           [false, false, true, true],
@@ -318,8 +271,8 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
         await shouldFail.reverting.withMessage(
           approveAndAddUser({
             pool: juriStakingPool,
-            stake: 5,
             token,
+            stake: 5,
             user: user1,
           }),
           'You need to pass the minStakePerUser to add yourself!'
@@ -332,7 +285,12 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
         let poolUsers = [user1, user2, user3, user4]
         const poolStakes = [1000, 1000, 1000, 1000]
 
-        await initialPoolSetup({ pool: juriStakingPool, poolUsers, poolStakes })
+        await initialPoolSetup({
+          pool: juriStakingPool,
+          poolUsers,
+          poolStakes,
+          token,
+        })
 
         const complianceData = [
           [false, false, true, true],
@@ -394,6 +352,7 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
           pool: juriStakingPool,
           poolUsers: [user1],
           poolStakes: [initialUserStake],
+          token,
         })
 
         await token.approve(juriStakingPool.address, addedUserStake, {
@@ -420,6 +379,7 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
             pool: juriStakingPool,
             poolUsers: [user1],
             poolStakes: [5000],
+            token,
           })
 
           await token.approve(juriStakingPool.address, ONE_HUNDRED_TOKEN, {
@@ -439,6 +399,7 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
             pool: juriStakingPool,
             poolUsers: [user1],
             poolStakes: [5000],
+            token,
           })
 
           await token.approve(juriStakingPool.address, ONE_HUNDRED_TOKEN, {

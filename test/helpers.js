@@ -1,5 +1,22 @@
 const { expect } = require('chai')
-const { BN } = require('openzeppelin-test-helpers')
+const { BN, time } = require('openzeppelin-test-helpers')
+
+const {
+  defaultPeriodLength,
+  defaultFeePercentage,
+  defaultCompliantGainPercentage,
+  defaultMaxNonCompliantPenaltyPercentage,
+  defaultMinStakePerUser,
+  defaultMaxStakePerUser,
+  defaultMaxTotalStake,
+  getDefaultJuriAddress,
+  defaultUpdateIterationCount,
+  ONE_HUNDRED_TOKEN,
+  TWO_HUNDRED_TOKEN,
+} = require('./defaults')
+
+const ERC20Mintable = artifacts.require('./lib/ERC20Mintable.sol')
+const JuriStakingPool = artifacts.require('./JuriStakingPool.sol')
 
 const asyncForEach = async ({ array, callback }) => {
   for (let index = 0; index < array.length; index++) {
@@ -42,14 +59,8 @@ const logCurrentRound = ({
   })
 }
 
-const logNextRound = ({ totalAddedStake, totalRemovedStake }) => {
-  logger('nextRound.totalAddedStake: ' + totalAddedStake.toString())
-  logger('nextRound.totalRemovedStake: ' + totalRemovedStake.toString())
-}
-
 const logPoolState = async pool => {
   const currentStakingRound = await pool.currentStakingRound()
-  const nextStakingRound = await pool.nextStakingRound()
   const userCount = (await pool.getPoolUserCount()).toString()
   const complianceDataIndex = (await pool.complianceDataIndex()).toString()
   const ownerFunds = (await pool.ownerFunds()).toString()
@@ -73,7 +84,6 @@ const logPoolState = async pool => {
   }
 
   logCurrentRound(currentStakingRound)
-  logNextRound(nextStakingRound)
   logger({ totalUserStake }, { logLevel: 1 })
 
   logger({
@@ -150,14 +160,82 @@ const expectUserCountToBe = async ({ expectedUserCount, pool }) => {
   expect(userCount).to.be.bignumber.equal(new BN(expectedUserCount))
 }
 
+const Stages = {
+  AWAITING_COMPLIANCE_DATA: new BN(0),
+  AWAITING_FIRST_UPDATE: new BN(1),
+  AWAITING_SECOND_UPDATE: new BN(2),
+}
+
+const deployJuriStakingPool = async ({
+  periodLength = defaultPeriodLength,
+  feePercentage = defaultFeePercentage,
+  compliantGainPercentage = defaultCompliantGainPercentage,
+  maxNonCompliantPenaltyPercentage = defaultMaxNonCompliantPenaltyPercentage,
+  minStakePerUser = defaultMinStakePerUser,
+  maxStakePerUser = defaultMaxStakePerUser,
+  maxTotalStake = defaultMaxTotalStake,
+  juriAddress = getDefaultJuriAddress(),
+  poolUsers,
+} = {}) => {
+  const token = await ERC20Mintable.new()
+  await Promise.all(poolUsers.map(user => token.mint(user, TWO_HUNDRED_TOKEN)))
+
+  const startTime = (await time.latest()).add(time.duration.seconds(20))
+  const pool = await JuriStakingPool.new(
+    token.address,
+    startTime,
+    periodLength,
+    feePercentage,
+    compliantGainPercentage,
+    maxNonCompliantPenaltyPercentage,
+    minStakePerUser,
+    maxStakePerUser,
+    maxTotalStake,
+    juriAddress
+  )
+
+  return { pool, token }
+}
+
+const initialPoolSetup = async ({ pool, poolUsers, poolStakes, token }) => {
+  await token.approve(pool.address, ONE_HUNDRED_TOKEN)
+  await pool.addOwnerFunds()
+
+  await asyncForEach({
+    array: poolUsers,
+    callback: async (user, i) =>
+      approveAndAddUser({
+        pool,
+        stake: poolStakes[i],
+        token,
+        user,
+      }),
+  })
+
+  await time.increase(defaultPeriodLength)
+
+  await pool.addWasCompliantDataForUsers(defaultUpdateIterationCount, [])
+  await pool.firstUpdateStakeForNextXAmountOfUsers(defaultUpdateIterationCount)
+  await pool.secondUpdateStakeForNextXAmountOfUsers(
+    defaultUpdateIterationCount,
+    []
+  )
+
+  logger('************ After first period ************')
+  await logPoolState(pool)
+}
+
 module.exports = {
   approveAndAddUser,
   asyncForEach,
+  deployJuriStakingPool,
   expectUserCountToBe,
+  initialPoolSetup,
   logComplianceDataForFirstPeriods,
   logFirstUsers,
   logger,
   logIsStaking,
   logPoolState,
   logUserBalancesForFirstPeriods,
+  Stages,
 }
