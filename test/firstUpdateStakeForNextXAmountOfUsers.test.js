@@ -8,37 +8,33 @@ const {
   defaultUpdateIterationCount,
 } = require('./defaults')
 
-const { deployJuriStakingPool, initialPoolSetup, Stages } = require('./helpers')
+const {
+  deployJuriStakingPool,
+  initialPoolSetup,
+  runFullComplianceDataAddition,
+  runFullFirstUpdate,
+  runFullSecondUpdate,
+  runFullCompleteRound,
+  Stages,
+} = require('./helpers')
 
 const { computeNewCompliantStake } = require('./computationHelpers')
 
-const itRunsFirstUpdateCorrectly = async ([
-  owner,
-  user1,
-  user2,
-  user3,
-  user4,
-]) => {
+const itRunsFirstUpdateCorrectly = async addresses => {
   describe('when running first update', async () => {
-    let addedUserStake,
-      complianceData,
-      juriStakingPool,
-      pool,
-      poolStakes,
-      poolUsers,
-      token
+    let complianceData, juriStakingPool, pool, poolUsers, poolStakes, token
 
     beforeEach(async () => {
-      const deployedContracts = await deployJuriStakingPool({
-        poolUsers: [owner, user1, user2, user3, user4],
-      })
+      const deployedContracts = await deployJuriStakingPool({ addresses })
 
       token = deployedContracts.token
       juriStakingPool = deployedContracts.pool
 
-      complianceData = [false, false, true, true]
-      poolUsers = [user1, user2, user3, user4]
-      poolStakes = [1000, 1000, 1000, 1000].map(s => new BN(s))
+      poolUsers = addresses.slice(1, addresses.length) // without owner
+      poolStakes = new Array(poolUsers.length).fill(new BN(1000))
+      complianceData = new Array(poolUsers.length)
+        .fill(false)
+        .fill(true, poolUsers.length / 2)
 
       await initialPoolSetup({
         pool: juriStakingPool,
@@ -76,7 +72,7 @@ const itRunsFirstUpdateCorrectly = async ([
           pool.firstUpdateStakeForNextXAmountOfUsers(
             defaultUpdateIterationCount,
             {
-              from: user1,
+              from: poolUsers[0],
             }
           ),
           'Only owner can use this function!'
@@ -124,265 +120,389 @@ const itRunsFirstUpdateCorrectly = async ([
     })
 
     describe('when given different updateIterationCounts', async () => {
-      let updateIterationCount
+      beforeEach(async () => {
+        const deployedContracts = await deployJuriStakingPool({ addresses })
 
-      describe('when using a small updateIterationCount', async () => {
-        beforeEach(async () => {
-          updateIterationCount = new BN(1)
+        juriStakingPool = deployedContracts.pool
+        token = deployedContracts.token
+
+        poolUsers = addresses.slice(1, addresses.length) // without owner
+        poolStakes = new Array(poolUsers.length).fill(new BN(1000))
+
+        await initialPoolSetup({
+          pool: juriStakingPool,
+          poolUsers,
+          poolStakes,
+          token,
         })
+        await time.increase(defaultPeriodLength)
 
-        describe('when there is only one user', async () => {
+        pool = juriStakingPool
+      })
+
+      const itRunsFirstUpdateCorrectlyWithIterationCount = async updateIterationCount => {
+        describe('when user is not staking', async () => {
           beforeEach(async () => {
-            const deployedContracts = await deployJuriStakingPool({
-              poolUsers: [owner, user1, user2, user3, user4],
-            })
+            await pool.optOutOfStakingForNextPeriod({ from: poolUsers[0] })
 
-            juriStakingPool = deployedContracts.pool
-            token = deployedContracts.token
+            complianceData = new Array(poolUsers.length)
+              .fill(false)
+              .fill(true, poolUsers.length / 2)
 
-            poolUsers = [user1]
-            poolStakes = [new BN(1000)]
-
-            await initialPoolSetup({
-              pool: juriStakingPool,
+            await runFullCompleteRound({
+              complianceData,
+              pool,
               poolUsers,
-              poolStakes,
-              token,
+              updateIterationCount,
             })
             await time.increase(defaultPeriodLength)
 
-            pool = juriStakingPool
-          })
-
-          describe('when user is not staking', async () => {
-            beforeEach(async () => {
-              await pool.optOutOfStakingForNextPeriod({ from: user1 })
-
-              complianceData = [true]
-              await pool.addWasCompliantDataForUsers(
-                updateIterationCount,
-                complianceData
-              )
-              const removalIndices = await pool.getRemovalIndicesInUserList()
-              await pool.firstUpdateStakeForNextXAmountOfUsers(
-                updateIterationCount
-              )
-              await pool.secondUpdateStakeForNextXAmountOfUsers(
-                updateIterationCount,
-                removalIndices
-              )
-              await time.increase(defaultPeriodLength)
-
-              await pool.addWasCompliantDataForUsers(
-                updateIterationCount,
-                complianceData
-              )
-            })
-
-            it('does not update or move its user stake', async () => {
-              const currentStakeBefore = await pool.getStakeForUserInCurrentPeriod(
-                { from: user1 }
-              )
-              const nextStakeBefore = await pool.getAdditionalStakeForUserInNextPeriod(
-                { from: user1 }
-              )
-
-              await pool.firstUpdateStakeForNextXAmountOfUsers(
-                updateIterationCount
-              )
-
-              const currentStakeAfter = await pool.getStakeForUserInCurrentPeriod(
-                { from: user1 }
-              )
-              const nextStakeAfter = await pool.getAdditionalStakeForUserInNextPeriod(
-                { from: user1 }
-              )
-
-              expect(currentStakeAfter).to.be.bignumber.equal(
-                new BN(currentStakeBefore)
-              )
-              expect(nextStakeAfter).to.be.bignumber.equal(nextStakeBefore)
+            await runFullComplianceDataAddition({
+              complianceData,
+              pool,
+              poolUsers,
+              updateIterationCount,
             })
           })
 
-          describe('when user is compliant', async () => {
-            beforeEach(async () => {
-              complianceData = [true]
-              addedUserStake = new BN(500)
-              await token.approve(pool.address, addedUserStake, { from: user1 })
-              await pool.addMoreStakeForNextPeriod({ from: user1 })
+          it('does not update or move its user stake', async () => {
+            const currentStakeBefore = await pool.getStakeForUserInCurrentPeriod(
+              { from: poolUsers[0] }
+            )
+            const nextStakeBefore = await pool.getAdditionalStakeForUserInNextPeriod(
+              { from: poolUsers[0] }
+            )
 
-              await pool.addWasCompliantDataForUsers(
-                updateIterationCount,
-                complianceData
-              )
+            await runFullFirstUpdate({ pool, poolUsers, updateIterationCount })
+
+            const currentStakeAfter = await pool.getStakeForUserInCurrentPeriod(
+              { from: poolUsers[0] }
+            )
+            const nextStakeAfter = await pool.getAdditionalStakeForUserInNextPeriod(
+              { from: poolUsers[0] }
+            )
+
+            expect(currentStakeAfter).to.be.bignumber.equal(
+              new BN(currentStakeBefore)
+            )
+            expect(nextStakeAfter).to.be.bignumber.equal(nextStakeBefore)
+          })
+        })
+
+        describe('when user is compliant', async () => {
+          beforeEach(async () => {
+            complianceData = new Array(poolUsers.length).fill(true)
+            addedUserStakes = new Array(poolUsers.length).fill(new BN(500))
+
+            for (let i = 0; i < poolUsers.length; i++) {
+              await token.approve(pool.address, addedUserStakes[i], {
+                from: poolUsers[i],
+              })
+
+              await pool.addMoreStakeForNextPeriod({ from: poolUsers[i] })
+            }
+
+            await runFullComplianceDataAddition({
+              complianceData,
+              pool,
+              poolUsers,
+              updateIterationCount,
             })
+          })
 
-            it('moves its user stake', async () => {
-              const currentStakeBefore = await pool.getStakeForUserInCurrentPeriod(
-                { from: user1 }
-              )
-              await pool.firstUpdateStakeForNextXAmountOfUsers(
-                updateIterationCount
-              )
+          it('moves its user stake', async () => {
+            const currentStakeBefore = await pool.getStakeForUserInCurrentPeriod(
+              { from: poolUsers[0] }
+            )
+            await runFullFirstUpdate({ pool, poolUsers, updateIterationCount })
 
+            const currentStakeAfter = await pool.getStakeForUserInCurrentPeriod(
+              { from: poolUsers[0] }
+            )
+
+            expect(currentStakeAfter).to.be.bignumber.above(currentStakeBefore)
+          })
+
+          it.only('adds stake from next period', async () => {
+            await runFullFirstUpdate({ pool, poolUsers, updateIterationCount })
+
+            const { stage } = await pool.currentStakingRound()
+            console.log({ stage })
+
+            for (let i = 0; i < poolUsers.length; i++) {
               const currentStakeAfter = await pool.getStakeForUserInCurrentPeriod(
-                { from: user1 }
-              )
-
-              expect(currentStakeAfter).to.be.bignumber.above(
-                currentStakeBefore
-              )
-            })
-
-            it('adds stake from next period', async () => {
-              await pool.firstUpdateStakeForNextXAmountOfUsers(
-                updateIterationCount
-              )
-
-              const currentStakeAfter = await pool.getStakeForUserInCurrentPeriod(
-                { from: user1 }
+                { from: poolUsers[i] }
               )
               const nextStakeAfter = await pool.getAdditionalStakeForUserInNextPeriod(
-                { from: user1 }
+                { from: poolUsers[i] }
               )
 
               expect(nextStakeAfter).to.be.bignumber.equal(new BN(0))
               expect(currentStakeAfter).to.be.bignumber.equal(
                 computeNewCompliantStake({
                   compliantGainPercentage: defaultCompliantGainPercentage,
-                  userStake: poolStakes[0],
-                }).add(addedUserStake)
+                  userStake: poolStakes[i],
+                }).add(addedUserStakes[i])
               )
-            })
-
-            it('updates the total user stake accordingly', async () => {
-              await pool.firstUpdateStakeForNextXAmountOfUsers(
-                updateIterationCount
-              )
-              const totalUserStakeAfter = await pool.totalUserStake()
-
-              expect(totalUserStakeAfter).to.be.bignumber.equal(
-                computeNewCompliantStake({
-                  compliantGainPercentage: defaultCompliantGainPercentage,
-                  userStake: poolStakes[0],
-                }).add(addedUserStake)
-              )
-            })
-
-            it('does not change the totalStakeToSlash for the current round', async () => {
-              await pool.firstUpdateStakeForNextXAmountOfUsers(
-                updateIterationCount
-              )
-
-              const { totalStakeToSlash } = await pool.currentStakingRound()
-              expect(totalStakeToSlash).to.be.bignumber.equal(new BN(0))
-            })
-
-            it('adds the compliant factor to the user stake', async () => {
-              await pool.firstUpdateStakeForNextXAmountOfUsers(
-                updateIterationCount
-              )
-              const currentStakeAfter = await pool.getStakeForUserInCurrentPeriod(
-                { from: user1 }
-              )
-
-              expect(currentStakeAfter).to.be.bignumber.equal(
-                computeNewCompliantStake({
-                  compliantGainPercentage: defaultCompliantGainPercentage,
-                  userStake: poolStakes[0],
-                }).add(addedUserStake)
-              )
-            })
-
-            it('adds gain for user to the total payout for current round', async () => {
-              const totalPayoutBefore = (await pool.currentStakingRound())
-                .totalPayout
-
-              await pool.firstUpdateStakeForNextXAmountOfUsers(
-                updateIterationCount
-              )
-
-              const totalPayoutAfter = (await pool.currentStakingRound())
-                .totalPayout
-
-              expect(totalPayoutAfter).to.be.bignumber.equal(
-                totalPayoutBefore.add(
-                  computeNewCompliantStake({
-                    compliantGainPercentage: defaultCompliantGainPercentage,
-                    userStake: poolStakes[0],
-                  }).sub(poolStakes[0])
-                )
-              )
-            })
-
-            it('adds updateIterationCount to updateStaking1Index', async () => {
-              await pool.firstUpdateStakeForNextXAmountOfUsers(
-                updateIterationCount
-              )
-              const { updateStaking1Index } = await pool.currentStakingRound()
-              expect(updateStaking1Index).to.be.bignumber.equal(new BN(1))
-            })
-
-            it('updates the stage to AWAITING_SECOND_UPDATE', async () => {
-              await pool.firstUpdateStakeForNextXAmountOfUsers(
-                updateIterationCount
-              )
-              const { stage } = await pool.currentStakingRound()
-              expect(stage).to.be.bignumber.equal(Stages.AWAITING_SECOND_UPDATE)
-            })
+            }
           })
 
-          describe('when user is non-compliant', async () => {
-            beforeEach(async () => {
-              complianceData = [false]
-              await pool.addWasCompliantDataForUsers(
-                updateIterationCount,
-                complianceData
-              )
-            })
+          it('updates the total user stake accordingly', async () => {
+            await runFullFirstUpdate({ pool, poolUsers, updateIterationCount })
 
-            it('changes the totalStakeToSlash for the current round', async () => {
-              await pool.firstUpdateStakeForNextXAmountOfUsers(
-                updateIterationCount
-              )
+            const totalUserStake = await pool.totalUserStake()
 
-              const { totalStakeToSlash } = await pool.currentStakingRound()
-              expect(totalStakeToSlash).to.be.bignumber.equal(poolStakes[0])
-            })
+            const expectedTotalUserStake = poolStakes.reduce(
+              (sum, userStake, i) => {
+                const newUserStake = computeNewCompliantStake({
+                  compliantGainPercentage: defaultCompliantGainPercentage,
+                  userStake,
+                }).add(addedUserStakes[i])
+                return sum.add(newUserStake)
+              },
+              new BN(0)
+            )
 
-            it('does not update or move its user stake', async () => {
-              const currentStakeBefore = await pool.getStakeForUserInCurrentPeriod(
-                { from: user1 }
-              )
-              const nextStakeBefore = await pool.getAdditionalStakeForUserInNextPeriod(
-                { from: user1 }
-              )
+            expect(totalUserStake).to.be.bignumber.equal(expectedTotalUserStake)
+          })
 
-              await pool.firstUpdateStakeForNextXAmountOfUsers(
-                updateIterationCount
-              )
+          it('does not change the totalStakeToSlash for the current round', async () => {
+            await runFullFirstUpdate({ pool, poolUsers, updateIterationCount })
 
+            const { totalStakeToSlash } = await pool.currentStakingRound()
+            expect(totalStakeToSlash).to.be.bignumber.equal(new BN(0))
+          })
+
+          it('adds the compliant factor to the user stake', async () => {
+            await runFullFirstUpdate({ pool, poolUsers, updateIterationCount })
+
+            for (let i = 0; i < poolUsers.length; i++) {
               const currentStakeAfter = await pool.getStakeForUserInCurrentPeriod(
-                { from: user1 }
-              )
-              const nextStakeAfter = await pool.getAdditionalStakeForUserInNextPeriod(
-                { from: user1 }
+                { from: poolUsers[i] }
               )
 
               expect(currentStakeAfter).to.be.bignumber.equal(
-                new BN(currentStakeBefore)
+                computeNewCompliantStake({
+                  compliantGainPercentage: defaultCompliantGainPercentage,
+                  userStake: poolStakes[i],
+                }).add(addedUserStakes[i])
               )
-              expect(nextStakeAfter).to.be.bignumber.equal(nextStakeBefore)
-            })
+            }
+          })
+
+          it('adds gain for user to the total payout for current round', async () => {
+            const totalPayoutBefore = (await pool.currentStakingRound())
+              .totalPayout
+
+            await runFullFirstUpdate({ pool, poolUsers, updateIterationCount })
+
+            const totalPayoutAfter = (await pool.currentStakingRound())
+              .totalPayout
+
+            expect(totalPayoutAfter).to.be.bignumber.equal(
+              totalPayoutBefore.add(
+                computeNewCompliantStake({
+                  compliantGainPercentage: defaultCompliantGainPercentage,
+                  userStake: poolStakes[0],
+                }).sub(poolStakes[0])
+              )
+            )
+          })
+
+          it('adds updateIterationCount to updateStaking1Index', async () => {
+            await pool.firstUpdateStakeForNextXAmountOfUsers(
+              updateIterationCount
+            )
+            const { updateStaking1Index } = await pool.currentStakingRound()
+            expect(updateStaking1Index).to.be.bignumber.equal(
+              updateIterationCount
+            )
+          })
+
+          it('updates the stage to AWAITING_SECOND_UPDATE', async () => {
+            for (
+              let i = new BN(0);
+              i.lt(new BN(poolUsers.length));
+              i = i.add(updateIterationCount)
+            ) {
+              const stageBefore = (await pool.currentStakingRound()).stage
+              expect(stageBefore).to.be.bignumber.equal(
+                Stages.AWAITING_FIRST_UPDATE
+              )
+
+              await pool.firstUpdateStakeForNextXAmountOfUsers(
+                updateIterationCount
+              )
+            }
+
+            const stageAfter = (await pool.currentStakingRound()).stage
+            expect(stageAfter).to.be.bignumber.equal(
+              Stages.AWAITING_SECOND_UPDATE
+            )
           })
         })
+
+        describe('when user is non-compliant', async () => {
+          beforeEach(async () => {
+            complianceData = new Array(poolUsers.length).fill(false)
+            await runFullComplianceDataAddition({
+              complianceData,
+              pool,
+              poolUsers,
+              updateIterationCount,
+            })
+          })
+
+          it('changes the totalStakeToSlash for the current round', async () => {
+            await runFullFirstUpdate({ pool, poolUsers, updateIterationCount })
+
+            const { totalStakeToSlash } = await pool.currentStakingRound()
+            expect(totalStakeToSlash).to.be.bignumber.equal(poolStakes[0])
+          })
+
+          it('does not update or move its user stake', async () => {
+            const currentStakeBefore = await pool.getStakeForUserInCurrentPeriod(
+              { from: poolUsers[0] }
+            )
+            const nextStakeBefore = await pool.getAdditionalStakeForUserInNextPeriod(
+              { from: poolUsers[0] }
+            )
+
+            await runFullFirstUpdate({ pool, poolUsers, updateIterationCount })
+
+            const currentStakeAfter = await pool.getStakeForUserInCurrentPeriod(
+              { from: poolUsers[0] }
+            )
+            const nextStakeAfter = await pool.getAdditionalStakeForUserInNextPeriod(
+              { from: poolUsers[0] }
+            )
+
+            expect(currentStakeAfter).to.be.bignumber.equal(
+              new BN(currentStakeBefore)
+            )
+            expect(nextStakeAfter).to.be.bignumber.equal(nextStakeBefore)
+          })
+        })
+      }
+
+      describe('when using a small updateIterationCount', async () => {
+        const updateIterationCount = new BN(1)
+
+        itRunsFirstUpdateCorrectlyWithIterationCount(updateIterationCount)
+      })
+
+      describe('when using a high updateIterationCount', async () => {
+        const updateIterationCount = new BN(1000)
+
+        itRunsFirstUpdateCorrectlyWithIterationCount(updateIterationCount)
       })
     })
 
-    describe('when there are normal amount of users', async () => {})
-    describe('when there are only a few users', async () => {})
-    describe('when there are no users', async () => {})
+    describe('when given different compliance gain percentages', async () => {
+      let compliantGainPercentage
+
+      describe('when given a low compliance gain percentage', async () => {
+        beforeEach(async () => {
+          compliantGainPercentage = new BN(1)
+
+          const deployedContracts = await deployJuriStakingPool({
+            addresses,
+            compliantGainPercentage,
+          })
+
+          juriStakingPool = deployedContracts.pool
+          token = deployedContracts.token
+
+          poolUsers = addresses.slice(1, addresses.length) // without owner
+          poolStakes = new Array(poolUsers.length).fill(new BN(1000))
+
+          await initialPoolSetup({
+            pool: juriStakingPool,
+            poolUsers,
+            poolStakes,
+            token,
+          })
+          await time.increase(defaultPeriodLength)
+
+          pool = juriStakingPool
+          complianceData = new Array(poolUsers.length).fill(true)
+          await pool.addWasCompliantDataForUsers(
+            defaultUpdateIterationCount,
+            complianceData
+          )
+        })
+
+        it('computes the new stakes correctly', async () => {
+          await pool.firstUpdateStakeForNextXAmountOfUsers(
+            defaultUpdateIterationCount
+          )
+
+          for (let i = 0; i < poolUsers.length; i++) {
+            const currentStakeAfter = await pool.getStakeForUserInCurrentPeriod(
+              { from: poolUsers[i] }
+            )
+
+            expect(currentStakeAfter).to.be.bignumber.equal(
+              computeNewCompliantStake({
+                compliantGainPercentage,
+                userStake: poolStakes[i],
+              })
+            )
+          }
+        })
+      })
+
+      describe('when given a high compliance gain percentage', async () => {
+        beforeEach(async () => {
+          compliantGainPercentage = new BN(90)
+
+          const deployedContracts = await deployJuriStakingPool({
+            addresses,
+            compliantGainPercentage,
+          })
+
+          juriStakingPool = deployedContracts.pool
+          token = deployedContracts.token
+
+          poolUsers = addresses.slice(1, addresses.length) // without owner
+          poolStakes = new Array(poolUsers.length).fill(new BN(1000))
+
+          await initialPoolSetup({
+            pool: juriStakingPool,
+            poolUsers,
+            poolStakes,
+            token,
+          })
+          await time.increase(defaultPeriodLength)
+
+          pool = juriStakingPool
+          complianceData = new Array(poolUsers.length).fill(true)
+          await pool.addWasCompliantDataForUsers(
+            defaultUpdateIterationCount,
+            complianceData
+          )
+        })
+
+        it('computes the new stakes correctly', async () => {
+          await pool.firstUpdateStakeForNextXAmountOfUsers(
+            defaultUpdateIterationCount
+          )
+
+          for (let i = 0; i < poolUsers.length; i++) {
+            const currentStakeAfter = await pool.getStakeForUserInCurrentPeriod(
+              { from: poolUsers[i] }
+            )
+
+            expect(currentStakeAfter).to.be.bignumber.equal(
+              computeNewCompliantStake({
+                compliantGainPercentage,
+                userStake: poolStakes[i],
+              })
+            )
+          }
+        })
+      })
+    })
   })
 }
 

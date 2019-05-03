@@ -29,8 +29,10 @@ const {
 
 const itRunsFirstUpdateCorrectly = require('./firstUpdateStakeForNextXAmountOfUsers.test')
 
-contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
+contract('JuriStakingPool', accounts => {
   let juriStakingPool
+
+  const [owner, user1, user2, user3, user4] = accounts
 
   beforeEach(() => setDefaultJuriAddress(owner))
 
@@ -97,7 +99,7 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
   describe('when staking', async () => {
     beforeEach(async () => {
       const deployedContracts = await deployJuriStakingPool({
-        poolUsers: [owner, user1, user2, user3, user4],
+        addresses: [owner, user1, user2, user3, user4],
       })
 
       juriStakingPool = deployedContracts.pool
@@ -137,7 +139,25 @@ contract('JuriStakingPool', ([owner, user1, user2, user3, user4]) => {
       expect(startTime).to.be.bignumber.lt(expectedLatestTime)
     })
 
-    itRunsFirstUpdateCorrectly([owner, user1, user2, user3, user4])
+    describe('when running the first update', async () => {
+      /* describe('when there is only one user', async () => {
+        const addresses = [owner, user1]
+
+        itRunsFirstUpdateCorrectly(addresses)
+      })
+ */
+      describe.only('when there are only a few users', async () => {
+        const addresses = [owner, user1, user2, user3]
+
+        itRunsFirstUpdateCorrectly(addresses)
+      })
+
+      /* describe('when there are many users', async () => {
+        const addresses = accounts // all available addresses
+
+        itRunsFirstUpdateCorrectly(addresses)
+      }) */
+    })
 
     describe('when running pool rounds', async () => {
       it('updates user stakes', async () => {

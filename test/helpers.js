@@ -175,10 +175,10 @@ const deployJuriStakingPool = async ({
   maxStakePerUser = defaultMaxStakePerUser,
   maxTotalStake = defaultMaxTotalStake,
   juriAddress = getDefaultJuriAddress(),
-  poolUsers,
+  addresses,
 } = {}) => {
   const token = await ERC20Mintable.new()
-  await Promise.all(poolUsers.map(user => token.mint(user, TWO_HUNDRED_TOKEN)))
+  await Promise.all(addresses.map(user => token.mint(user, TWO_HUNDRED_TOKEN)))
 
   const startTime = (await time.latest()).add(time.duration.seconds(20))
   const pool = await JuriStakingPool.new(
@@ -225,6 +225,59 @@ const initialPoolSetup = async ({ pool, poolUsers, poolStakes, token }) => {
   await logPoolState(pool)
 }
 
+const runFullComplianceDataAddition = async ({
+  complianceData,
+  pool,
+  poolUsers,
+  updateIterationCount,
+}) => {
+  for (
+    let i = new BN(0);
+    i.lt(new BN(poolUsers.length));
+    i = i.add(updateIterationCount)
+  ) {
+    await pool.addWasCompliantDataForUsers(updateIterationCount, complianceData)
+  }
+}
+
+const runFullFirstUpdate = async ({
+  pool,
+  poolUsers,
+  updateIterationCount,
+}) => {
+  for (
+    let i = new BN(0);
+    i.lt(new BN(poolUsers.length));
+    i = i.add(updateIterationCount)
+  ) {
+    await pool.firstUpdateStakeForNextXAmountOfUsers(updateIterationCount)
+  }
+}
+
+const runFullSecondUpdate = async ({
+  pool,
+  poolUsers,
+  updateIterationCount,
+}) => {
+  for (
+    let i = new BN(0);
+    i.lt(new BN(poolUsers.length));
+    i = i.add(updateIterationCount)
+  ) {
+    const removalIndices = await pool.getRemovalIndicesInUserList()
+    await pool.secondUpdateStakeForNextXAmountOfUsers(
+      updateIterationCount,
+      removalIndices
+    )
+  }
+}
+
+const runFullCompleteRound = async data => {
+  await runFullComplianceDataAddition(data)
+  await runFullFirstUpdate(data)
+  await runFullSecondUpdate(data)
+}
+
 module.exports = {
   approveAndAddUser,
   asyncForEach,
@@ -237,5 +290,9 @@ module.exports = {
   logIsStaking,
   logPoolState,
   logUserBalancesForFirstPeriods,
+  runFullCompleteRound,
+  runFullComplianceDataAddition,
+  runFullFirstUpdate,
+  runFullSecondUpdate,
   Stages,
 }
