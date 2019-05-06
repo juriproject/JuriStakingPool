@@ -366,9 +366,9 @@ contract JuriStakingPool is Ownable {
         isJuriNetwork
         atStage(Stages.AWAITING_COMPLIANCE_DATA)
     {
-        if (currentStakingRound.addComplianceDataIndex + _updateIterationCount > users.length) {
+        if (currentStakingRound.addComplianceDataIndex.add(_updateIterationCount) > users.length) {
             require(
-                currentStakingRound.addComplianceDataIndex +_wasCompliant.length == users.length,
+                currentStakingRound.addComplianceDataIndex.add(_wasCompliant.length) == users.length,
                 'Compliance data length must match pool users array!'
             );
         }
@@ -396,7 +396,8 @@ contract JuriStakingPool is Ownable {
 
         for (
             uint256 i = currentStakingRound.addComplianceDataIndex;
-            i < users.length && i < _updateIterationCount;
+            i < users.length && i <
+                currentStakingRound.addComplianceDataIndex.add(_updateIterationCount);
             i++
         ) {
             complianceDataAtIndex[complianceDataIndex][users[i]] = _wasCompliant[i];
@@ -426,7 +427,8 @@ contract JuriStakingPool is Ownable {
     {
         for (
             uint256 i = currentStakingRound.updateStaking1Index;
-            i < users.length && i < _updateIterationCount;
+            i < users.length && i <
+                currentStakingRound.updateStaking1Index.add(_updateIterationCount);
             i++
         ) {
             address user = users[i];
@@ -479,7 +481,7 @@ contract JuriStakingPool is Ownable {
     {
         require(
             _removalIndices.length == nextStakingRound.usersToRemove.length,
-            "Please pass _removalIndices  by calling `getRemovalIndicesInUserList`!"
+            "Please pass _removalIndices by calling `getRemovalIndicesInUserList`!"
         );
 
         if (currentStakingRound.updateStaking2Index == 0) {
@@ -488,7 +490,8 @@ contract JuriStakingPool is Ownable {
 
         for (
             uint256 i = currentStakingRound.updateStaking2Index;
-            i < users.length && i < _updateIterationCount;
+            i < users.length && i <
+                currentStakingRound.updateStaking2Index.add(_updateIterationCount);
             i++
         ) {
             address user = users[i];
@@ -756,7 +759,7 @@ contract JuriStakingPool is Ownable {
         bool canWithdrawAll = true;
         _withdrawForUser(userToRemove, userBalance, canWithdrawAll);
 
-        users[_index] = users[users.length - 1]; // changes order in users!
+        users[_index] = users[users.length.sub(1)]; // changes order in users!
         users.length--;
     }
 
@@ -792,6 +795,7 @@ contract JuriStakingPool is Ownable {
 
         return nonCompliantFactor >= poolDefinition.maxNonCompliantPenaltyPercentage;
     }
+
     function _computeNewNonCompliantStake(uint256 _userStake)
         private
         view

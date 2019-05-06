@@ -30,36 +30,47 @@ const logger = (msg, { logLevel = 2 } = {}) => {
   if (process.env.LOG_LEVEL === '0' && logLevel <= 0) console.log(msg)
 }
 
-const logCurrentRound = ({
-  juriFees,
-  nonCompliancePenalty,
-  roundIndex,
-  totalPayout,
-  totalStakeToSlash,
-  useMaxNonCompliancy,
-}) => {
+const logCurrentRound = (
+  {
+    juriFees,
+    nonCompliancePenalty,
+    roundIndex,
+    totalPayout,
+    totalStakeToSlash,
+    updateStaking1Index,
+    updateStaking2Index,
+    useMaxNonCompliancy,
+  },
+  { logLevel = 1 } = {}
+) => {
   logger('currentRound.roundIndex ' + roundIndex.toString(), {
-    logLevel: 1,
+    logLevel,
+  })
+  logger('currentRound.updateStaking1Index ' + updateStaking1Index.toString(), {
+    logLevel,
+  })
+  logger('currentRound.updateStaking2Index ' + updateStaking2Index.toString(), {
+    logLevel,
   })
   logger('currentRound.totalStakeToSlash: ' + totalStakeToSlash.toString(), {
-    logLevel: 1,
+    logLevel,
   })
   logger(
     'currentRound.nonCompliancePenalty: ' + nonCompliancePenalty.toString(),
-    { logLevel: 1 }
+    { logLevel }
   )
   logger('currentRound.totalPayout: ' + totalPayout.toString(), {
-    logLevel: 1,
+    logLevel,
   })
   logger('currentRound.useMaxNonCompliancy: ' + useMaxNonCompliancy, {
-    logLevel: 1,
+    logLevel,
   })
   logger('currentRound.juriFees: ' + juriFees.toString(), {
-    logLevel: 1,
+    logLevel,
   })
 }
 
-const logPoolState = async pool => {
+const logPoolState = async (pool, { logLevel = 2 } = {}) => {
   const currentStakingRound = await pool.currentStakingRound()
   const userCount = (await pool.getPoolUserCount()).toString()
   const complianceDataIndex = (await pool.complianceDataIndex()).toString()
@@ -69,7 +80,7 @@ const logPoolState = async pool => {
 
   try {
     const firstUserToAdd = (await pool.getUserToBeAddedNextPeriod(0)).toString()
-    logger({ firstUserToAdd })
+    logger({ firstUserToAdd }, { logLevel })
   } catch (error) {
     // ignore (usersToAddNextPeriod array is empty)
   }
@@ -78,20 +89,23 @@ const logPoolState = async pool => {
     const firstUserToRemove = (await pool.getUserToBeRemovedNextPeriod(
       0
     )).toString()
-    logger({ firstUserToRemove })
+    logger({ firstUserToRemove }, { logLevel })
   } catch (error) {
     // ignore (usersToRemoveNextPeriod array is empty)
   }
 
-  logCurrentRound(currentStakingRound)
-  logger({ totalUserStake }, { logLevel: 1 })
+  logCurrentRound(currentStakingRound, { logLevel })
+  logger({ totalUserStake }, { logLevel: 1 }, { logLevel })
 
-  logger({
-    userCount,
-    complianceDataIndex,
-    ownerFunds,
-    removalIndices,
-  })
+  logger(
+    {
+      userCount,
+      complianceDataIndex,
+      ownerFunds,
+      removalIndices,
+    },
+    { logLevel }
+  )
 }
 
 const logIsStaking = async ({ pool, users }) => {
@@ -250,7 +264,13 @@ const runFullFirstUpdate = async ({
     i.lt(new BN(poolUsers.length));
     i = i.add(updateIterationCount)
   ) {
+    logger(`************ UPDATE ${i} ************`, { logLevel: 2 })
+    logger('************ Before first update ************', { logLevel: 2 })
+    await logPoolState(pool, { logLevel: 2 })
     await pool.firstUpdateStakeForNextXAmountOfUsers(updateIterationCount)
+    logger('************ After first update ************', { logLevel: 2 })
+    await logPoolState(pool, { logLevel: 2 })
+    logger(`************ FINISHED UPDATE ${i} ************`, { logLevel: 2 })
   }
 }
 

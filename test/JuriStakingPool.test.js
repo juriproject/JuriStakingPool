@@ -28,6 +28,7 @@ const {
 } = require('./helpers')
 
 const itRunsFirstUpdateCorrectly = require('./firstUpdateStakeForNextXAmountOfUsers.test')
+const itRunsSecondUpdateCorrectly = require('./secondUpdateStakeForNextXAmountOfUsers.test')
 
 contract('JuriStakingPool', accounts => {
   let juriStakingPool
@@ -144,19 +145,36 @@ contract('JuriStakingPool', accounts => {
         const addresses = [owner, user1]
 
         itRunsFirstUpdateCorrectly(addresses)
-      })
- */
-      describe.only('when there are only a few users', async () => {
+      }) */
+      /* describe.only('when there are only a few users', async () => {
         const addresses = [owner, user1, user2, user3]
 
         itRunsFirstUpdateCorrectly(addresses)
-      })
-
+      }) */
       /* describe('when there are many users', async () => {
         const addresses = accounts // all available addresses
 
         itRunsFirstUpdateCorrectly(addresses)
       }) */
+    })
+
+    describe('when running the second update', async () => {
+      /* describe('when there is only one user', async () => {
+        const addresses = [owner, user1]
+
+        itRunsSecondUpdateCorrectly(addresses)
+      }) */
+      describe.only('when there are only a few users', async () => {
+        const addresses = [owner, user1, user2, user3]
+
+        itRunsSecondUpdateCorrectly(addresses)
+      })
+
+      describe('when there are many users', async () => {
+        const addresses = accounts // all available addresses
+
+        itRunsSecondUpdateCorrectly(addresses)
+      })
     })
 
     describe('when running pool rounds', async () => {
