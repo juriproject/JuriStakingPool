@@ -8,6 +8,8 @@ const {
   defaultMaxNonCompliantPenaltyPercentage,
   defaultPeriodLength,
   defaultUpdateIterationCount,
+  getDefaultJuriAddress,
+  ONE_HUNDRED_TOKEN,
 } = require('./defaults')
 
 const {
@@ -22,14 +24,16 @@ const {
 
 const {
   computeJuriFees,
-  computeNewCompliantStake,
   computeNewNonCompliantStake,
+  computeTotalPayout,
+  computeTotalStakeToSlash,
+  computeUnderWriterLiability,
 } = require('./computationHelpers')
 
 const itRunsSecondUpdateCorrectly = async addresses => {
   describe('when running second update', async () => {
     let complianceData,
-      juriStakingPool,
+      compliantThreshold,
       pool,
       poolUsers,
       poolStakes,
@@ -41,44 +45,45 @@ const itRunsSecondUpdateCorrectly = async addresses => {
       const deployedContracts = await deployJuriStakingPool({ addresses })
 
       token = deployedContracts.token
-      juriStakingPool = deployedContracts.pool
+      pool = deployedContracts.pool
 
       poolUsers = addresses.slice(1, addresses.length) // without owner
       poolStakes = new Array(poolUsers.length).fill(new BN(1000))
       complianceData = new Array(poolUsers.length)
         .fill(false)
         .fill(true, poolUsers.length / 2)
+      compliantThreshold = poolUsers.length / 2 - 1
 
       await initialPoolSetup({
-        pool: juriStakingPool,
+        pool,
         poolUsers,
         poolStakes,
         token,
       })
       await time.increase(defaultPeriodLength)
 
-      await juriStakingPool.addWasCompliantDataForUsers(
+      await pool.addWasCompliantDataForUsers(
         defaultUpdateIterationCount,
         complianceData
       )
 
       await runFullFirstUpdate({
-        pool: juriStakingPool,
+        pool,
         poolUsers,
         updateIterationCount: defaultUpdateIterationCount,
       })
 
-      totalStakeToSlash = poolStakes.reduce(
-        (stakeToSlash, userStake) => stakeToSlash.add(userStake),
-        new BN(0)
-      )
-      const juriFees = computeJuriFees({
-        feePercentage: defaultFeePercentage,
-        totalUserStake: totalStakeToSlash,
+      totalStakeToSlash = computeTotalStakeToSlash({
+        compliantThreshold,
+        poolStakes,
       })
-      totalPayout = juriFees
 
-      pool = juriStakingPool
+      totalPayout = computeTotalPayout({
+        compliantGainPercentage: defaultCompliantGainPercentage,
+        compliantThreshold,
+        feePercentage: defaultFeePercentage,
+        poolStakes,
+      })
     })
 
     describe('when called by owner', async () => {
@@ -175,28 +180,336 @@ const itRunsSecondUpdateCorrectly = async addresses => {
           updateIterationCount: defaultUpdateIterationCount,
         })
         await time.increase(defaultPeriodLength)
+      })
 
-        complianceData = new Array(poolUsers.length).fill(false)
+      describe('when given half compliant users', async () => {
+        beforeEach(async () => {
+          complianceData = new Array(poolUsers.length)
+            .fill(false)
+            .fill(true, poolUsers.length / 2)
 
-        await juriStakingPool.addWasCompliantDataForUsers(
-          defaultUpdateIterationCount,
-          complianceData
-        )
+          compliantThreshold = poolUsers.length / 2 - 1
 
-        await runFullFirstUpdate({
-          pool,
-          poolUsers,
-          updateIterationCount: defaultUpdateIterationCount,
+          await pool.addWasCompliantDataForUsers(
+            defaultUpdateIterationCount,
+            complianceData
+          )
+
+          await runFullFirstUpdate({
+            pool,
+            poolUsers,
+            updateIterationCount: defaultUpdateIterationCount,
+          })
+        })
+
+        it('computes it correctly', async () => {
+          if (poolUsers.length > 1) {
+            await pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1), [])
+            const { useMaxNonCompliancy } = await pool.currentStakingRound()
+
+            expect(useMaxNonCompliancy).to.be.true
+          }
         })
       })
 
-      it.only('computes it correctly', async () => {
-        if (poolUsers.length > 1) {
-          await pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1), [])
-          const { useMaxNonCompliancy } = await pool.currentStakingRound()
+      describe('when given 3/4 compliant users', async () => {
+        beforeEach(async () => {
+          complianceData = new Array(poolUsers.length)
+            .fill(false)
+            .fill(true, poolUsers.length / 1.3333333333)
 
-          expect(useMaxNonCompliancy).to.be.false
+          compliantThreshold = poolUsers.length / 1.3333333333 - 1
+
+          await pool.addWasCompliantDataForUsers(
+            defaultUpdateIterationCount,
+            complianceData
+          )
+
+          await runFullFirstUpdate({
+            pool,
+            poolUsers,
+            updateIterationCount: defaultUpdateIterationCount,
+          })
+        })
+
+        it('computes it correctly', async () => {
+          if (poolUsers.length > 1) {
+            await pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1), [])
+            const { useMaxNonCompliancy } = await pool.currentStakingRound()
+
+            expect(useMaxNonCompliancy).to.be.false
+          }
+        })
+      })
+    })
+
+    describe('when running the last round', async () => {
+      beforeEach(async () => {
+        if (poolUsers.length > 1) {
+          await pool.secondUpdateStakeForNextXAmountOfUsers(
+            poolUsers.length - 1,
+            []
+          )
         }
+      })
+
+      describe('when handling the juri fees', async () => {
+        it('computes them correctly', async () => {
+          const juriAddress = getDefaultJuriAddress()
+          const balanceBefore = await token.balanceOf(juriAddress)
+
+          await pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1), [])
+
+          const balanceAfter = await token.balanceOf(juriAddress)
+
+          const totalUserStake = poolStakes.reduce(
+            (totalStake, userStake) => totalStake.add(userStake),
+            new BN(0)
+          )
+          const expectedJuriFees = computeJuriFees({
+            feePercentage: defaultFeePercentage,
+            totalUserStake,
+          })
+
+          console.log({ expectedJuriFees: expectedJuriFees.toString() })
+
+          expect(balanceAfter).to.be.bignumber.equal(
+            balanceBefore.add(expectedJuriFees)
+          )
+        })
+
+        describe('when handling high juri fees', async () => {
+          let feePercentage
+
+          beforeEach(async () => {
+            feePercentage = new BN(40)
+            const deployedContracts = await deployJuriStakingPool({
+              addresses,
+              feePercentage,
+            })
+            token = deployedContracts.token
+            pool = deployedContracts.pool
+
+            await initialPoolSetup({
+              pool,
+              poolUsers,
+              poolStakes,
+              token,
+            })
+            await time.increase(defaultPeriodLength)
+
+            await pool.addWasCompliantDataForUsers(
+              defaultUpdateIterationCount,
+              complianceData
+            )
+
+            await runFullFirstUpdate({
+              pool,
+              poolUsers,
+              updateIterationCount: defaultUpdateIterationCount,
+            })
+
+            if (poolUsers.length > 1) {
+              await pool.secondUpdateStakeForNextXAmountOfUsers(
+                poolUsers.length - 1,
+                []
+              )
+            }
+          })
+
+          it('computes them correctly', async () => {
+            const juriAddress = getDefaultJuriAddress()
+            const balanceBefore = await token.balanceOf(juriAddress)
+
+            await pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1), [])
+
+            const balanceAfter = await token.balanceOf(juriAddress)
+
+            const totalUserStake = poolStakes.reduce(
+              (totalStake, userStake) => totalStake.add(userStake),
+              new BN(0)
+            )
+            const expectedJuriFees = computeJuriFees({
+              feePercentage,
+              totalUserStake,
+            })
+
+            console.log({ expectedJuriFees: expectedJuriFees.toString() })
+
+            expect(balanceAfter).to.be.bignumber.equal(
+              balanceBefore.add(expectedJuriFees)
+            )
+          })
+        })
+      })
+
+      describe('when handling the underwriting', async () => {
+        describe('when using the max non compliancy', async () => {
+          it('underwrites the liablity from owner funds', async () => {
+            const ownerFundsBefore = await pool.ownerFunds()
+
+            await pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1), [])
+
+            const ownerFundsAfter = await pool.ownerFunds()
+            const expectedUnderWriterLiability = computeUnderWriterLiability({
+              maxNonCompliantPenaltyPercentage: defaultMaxNonCompliantPenaltyPercentage,
+              totalPayout,
+              totalStakeToSlash,
+            })
+
+            expect(ownerFundsAfter).to.be.bignumber.equal(
+              ownerFundsBefore.sub(expectedUnderWriterLiability)
+            )
+          })
+        })
+
+        describe('when not using the max non compliancy', async () => {
+          beforeEach(async () => {
+            await pool.secondUpdateStakeForNextXAmountOfUsers(
+              poolUsers.length - 1,
+              []
+            )
+            await time.increase(defaultPeriodLength)
+
+            complianceData = new Array(poolUsers.length)
+              .fill(false)
+              .fill(true, poolUsers.length / 1.3333333333)
+
+            compliantThreshold = poolUsers.length / 1.3333333333 - 1
+
+            await pool.addWasCompliantDataForUsers(
+              defaultUpdateIterationCount,
+              complianceData
+            )
+
+            await runFullFirstUpdate({
+              pool,
+              poolUsers,
+              updateIterationCount: defaultUpdateIterationCount,
+            })
+
+            if (poolUsers.length > 1) {
+              await pool.secondUpdateStakeForNextXAmountOfUsers(
+                poolUsers.length - 1,
+                []
+              )
+            }
+          })
+
+          it('does not underwrite', async () => {
+            const ownerFundsBefore = await pool.ownerFunds()
+
+            await pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1), [])
+
+            const ownerFundsAfter = await pool.ownerFunds()
+
+            expect(ownerFundsAfter).to.be.bignumber.equal(ownerFundsBefore)
+          })
+        })
+      })
+
+      describe('when resetting pool for next round', async () => {
+        describe('when adding users', async () => {
+          /* see add user tests */
+        })
+
+        describe('when removing users', async () => {
+          /* see remove user tests */
+        })
+
+        describe('when contract is not sufficiently funded for next round', async () => {
+          beforeEach(async () => {
+            await pool.secondUpdateStakeForNextXAmountOfUsers(
+              poolUsers.length - 1,
+              []
+            )
+            await time.increase(defaultPeriodLength)
+
+            await pool.withdrawOwnerFunds(ONE_HUNDRED_TOKEN)
+            await pool.addUserInNextPeriod({ from: addresses[0] })
+            await pool.removeUserInNextPeriod({ from: poolUsers[0] })
+
+            complianceData = new Array(poolUsers.length).fill(true)
+            await pool.addWasCompliantDataForUsers(
+              defaultUpdateIterationCount,
+              complianceData
+            )
+            await runFullFirstUpdate({
+              pool,
+              poolUsers,
+              updateIterationCount: defaultUpdateIterationCount,
+            })
+
+            if (poolUsers.length > 1) {
+              await pool.secondUpdateStakeForNextXAmountOfUsers(
+                poolUsers.length - 1,
+                []
+              )
+            }
+          })
+
+          it('reverts the last update', async () => {
+            await shouldFail.reverting.withMessage(
+              pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1), []),
+              'Pool is not sufficiently funded by owner!'
+            )
+          })
+        })
+
+        describe('when contract is sufficiently funded for next round', async () => {
+          it('sets the staking period variables for next round', async () => {
+            await pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1), [])
+
+            const {
+              addComplianceDataIndex,
+              juriFees,
+              nonCompliancePenalty,
+              roundIndex,
+              stage,
+              totalPayout,
+              totalStakeToSlash,
+              updateStaking1Index,
+              updateStaking2Index,
+              useMaxNonCompliancy,
+            } = await pool.currentStakingRound()
+
+            expect(addComplianceDataIndex).to.be.bignumber.equal(new BN(0))
+            expect(nonCompliancePenalty).to.be.bignumber.equal(new BN(0))
+            expect(roundIndex).to.be.bignumber.equal(new BN(2))
+            expect(stage).to.be.bignumber.equal(Stages.AWAITING_COMPLIANCE_DATA)
+            expect(juriFees).to.be.bignumber.equal(totalPayout)
+            expect(totalStakeToSlash).to.be.bignumber.equal(new BN(0))
+            expect(updateStaking1Index).to.be.bignumber.equal(new BN(0))
+            expect(updateStaking2Index).to.be.bignumber.equal(new BN(0))
+            expect(useMaxNonCompliancy).to.be.false
+
+            await shouldFail.reverting.withMessage(
+              pool.getUserToBeAddedNextPeriod(0),
+              'invalid opcode'
+            )
+
+            await shouldFail.reverting.withMessage(
+              pool.getUserToBeRemovedNextPeriod(0),
+              'invalid opcode'
+            )
+          })
+
+          it('computes the juri fees and sets total payout to fees', async () => {
+            await pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1), [])
+
+            const { juriFees, totalPayout } = await pool.currentStakingRound()
+            const expectedJuriFees = computeJuriFees({
+              feePercentage: defaultFeePercentage,
+              totalUserStake: poolStakes.reduce(
+                (totalStake, userStake) => totalStake.add(userStake),
+                new BN(0)
+              ),
+            })
+
+            expect(juriFees).to.be.bignumber.equal(totalPayout)
+            expect(expectedJuriFees).to.be.bignumber.equal(juriFees)
+          })
+        })
       })
     })
 
@@ -204,21 +517,19 @@ const itRunsSecondUpdateCorrectly = async addresses => {
       beforeEach(async () => {
         const deployedContracts = await deployJuriStakingPool({ addresses })
 
-        juriStakingPool = deployedContracts.pool
+        pool = deployedContracts.pool
         token = deployedContracts.token
 
         poolUsers = addresses.slice(1, addresses.length) // without owner
         poolStakes = new Array(poolUsers.length).fill(new BN(1000))
 
         await initialPoolSetup({
-          pool: juriStakingPool,
+          pool,
           poolUsers,
           poolStakes,
           token,
         })
         await time.increase(defaultPeriodLength)
-
-        pool = juriStakingPool
       })
 
       const itRunsSecondUpdateCorrectlyWithIterationCount = async updateIterationCount => {
@@ -292,6 +603,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
         describe('when users are non-compliant', async () => {
           beforeEach(async () => {
             complianceData = new Array(poolUsers.length).fill(false)
+            compliantThreshold = poolUsers.length
             addedUserStakes = new Array(poolUsers.length).fill(new BN(500))
 
             for (let i = 0; i < poolUsers.length; i++) {
@@ -310,10 +622,10 @@ const itRunsSecondUpdateCorrectly = async addresses => {
             })
             await runFullFirstUpdate({ pool, poolUsers, updateIterationCount })
 
-            totalStakeToSlash = poolStakes.reduce(
-              (stakeToSlash, userStake) => stakeToSlash.add(userStake),
-              new BN(0)
-            )
+            totalStakeToSlash = computeTotalStakeToSlash({
+              compliantThreshold,
+              poolStakes,
+            })
             const juriFees = computeJuriFees({
               feePercentage: defaultFeePercentage,
               totalUserStake: totalStakeToSlash,
@@ -473,63 +785,46 @@ const itRunsSecondUpdateCorrectly = async addresses => {
             maxNonCompliantPenaltyPercentage,
           })
 
-          juriStakingPool = deployedContracts.pool
+          pool = deployedContracts.pool
           token = deployedContracts.token
 
           poolUsers = addresses.slice(1, addresses.length) // without owner
           poolStakes = new Array(poolUsers.length).fill(new BN(1000))
 
           await initialPoolSetup({
-            pool: juriStakingPool,
+            pool,
             poolUsers,
             poolStakes,
             token,
           })
           await time.increase(defaultPeriodLength)
 
-          pool = juriStakingPool
           complianceData = new Array(poolUsers.length)
             .fill(false)
             .fill(true, poolUsers.length / 2)
+          compliantThreshold = poolUsers.length / 2 - 1
+
           await pool.addWasCompliantDataForUsers(
             defaultUpdateIterationCount,
             complianceData
           )
-
           await runFullFirstUpdate({
             pool,
             poolUsers,
             updateIterationCount: defaultUpdateIterationCount,
           })
 
-          totalStakeToSlash = poolStakes.reduce(
-            (stakeToSlash, userStake, i) =>
-              i < poolUsers.length / 2 - 1
-                ? stakeToSlash.add(userStake)
-                : stakeToSlash,
-            new BN(0)
-          )
-          const totalUserStake = poolStakes.reduce(
-            (stakeToSlash, userStake) => stakeToSlash.add(userStake),
-            new BN(0)
-          )
-          const juriFees = computeJuriFees({
-            feePercentage: defaultFeePercentage,
-            totalUserStake,
+          totalStakeToSlash = computeTotalStakeToSlash({
+            compliantThreshold,
+            poolStakes,
           })
 
-          totalPayout = poolStakes.reduce(
-            (totalPayout, userStake, i) =>
-              i > poolUsers.length / 2 - 1
-                ? totalPayout.add(
-                    computeNewCompliantStake({
-                      compliantGainPercentage: defaultCompliantGainPercentage,
-                      userStake,
-                    }).sub(userStake)
-                  )
-                : totalPayout,
-            juriFees
-          )
+          totalPayout = computeTotalPayout({
+            compliantGainPercentage: defaultCompliantGainPercentage,
+            compliantThreshold,
+            feePercentage: defaultFeePercentage,
+            poolStakes,
+          })
         })
 
         it('computes the new stakes correctly', async () => {
@@ -564,63 +859,46 @@ const itRunsSecondUpdateCorrectly = async addresses => {
             maxNonCompliantPenaltyPercentage,
           })
 
-          juriStakingPool = deployedContracts.pool
+          pool = deployedContracts.pool
           token = deployedContracts.token
 
           poolUsers = addresses.slice(1, addresses.length) // without owner
           poolStakes = new Array(poolUsers.length).fill(new BN(1000))
 
           await initialPoolSetup({
-            pool: juriStakingPool,
+            pool,
             poolUsers,
             poolStakes,
             token,
           })
           await time.increase(defaultPeriodLength)
 
-          pool = juriStakingPool
           complianceData = new Array(poolUsers.length)
             .fill(false)
             .fill(true, poolUsers.length / 2)
+          compliantThreshold = poolUsers.length / 2 - 1
+
           await pool.addWasCompliantDataForUsers(
             defaultUpdateIterationCount,
             complianceData
           )
-
           await runFullFirstUpdate({
             pool,
             poolUsers,
             updateIterationCount: defaultUpdateIterationCount,
           })
 
-          totalStakeToSlash = poolStakes.reduce(
-            (stakeToSlash, userStake, i) =>
-              i < poolUsers.length / 2 - 1
-                ? stakeToSlash.add(userStake)
-                : stakeToSlash,
-            new BN(0)
-          )
-          const totalUserStake = poolStakes.reduce(
-            (stakeToSlash, userStake) => stakeToSlash.add(userStake),
-            new BN(0)
-          )
-          const juriFees = computeJuriFees({
-            feePercentage: defaultFeePercentage,
-            totalUserStake,
+          totalStakeToSlash = computeTotalStakeToSlash({
+            compliantThreshold,
+            poolStakes,
           })
 
-          totalPayout = poolStakes.reduce(
-            (totalPayout, userStake, i) =>
-              i > poolUsers.length / 2 - 1
-                ? totalPayout.add(
-                    computeNewCompliantStake({
-                      compliantGainPercentage: defaultCompliantGainPercentage,
-                      userStake,
-                    }).sub(userStake)
-                  )
-                : totalPayout,
-            juriFees
-          )
+          totalPayout = computeTotalPayout({
+            compliantGainPercentage: defaultCompliantGainPercentage,
+            compliantThreshold,
+            feePercentage: defaultFeePercentage,
+            poolStakes,
+          })
         })
 
         it('computes the new stakes correctly', async () => {

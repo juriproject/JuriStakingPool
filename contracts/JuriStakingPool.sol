@@ -357,9 +357,24 @@ contract JuriStakingPool is Ownable {
     function withdrawOwnerFunds(
         uint256 _amount
     ) public onlyOwner atStage(Stages.AWAITING_COMPLIANCE_DATA) {
-        require(_amount <= ownerFunds, "Can't withdraw more than available!");
+        uint256 amount = _amount;
+        uint256 minOwnerFunds = _computeMinOwnerFunds();
 
-        ownerFunds = ownerFunds.sub(_amount);
+        require(
+            ownerFunds > minOwnerFunds + 1,
+            "Can't withdraw below min owner funds!"
+        );
+        require(ownerFunds > 0, "No funds available to withdraw!");
+
+        if (ownerFunds < minOwnerFunds.add(amount)) {
+            amount = ownerFunds.sub(minOwnerFunds);
+        }
+
+        require(
+            token.transfer(msg.sender, amount),
+            "Token transfer failed!"
+        );
+        ownerFunds = ownerFunds.sub(amount);
     }
 
     /**
@@ -788,12 +803,19 @@ contract JuriStakingPool is Ownable {
         users.length--;
     }
 
-    function _ensureContractIsFundedForNextRound() private view {
-        uint256 maxPayout = totalUserStake.mul(
+    function _computeMinOwnerFunds() private view returns (uint256) {
+        uint256 maxNewStakeAfterRound = totalUserStake.mul(
             uint256(100).add(poolDefinition.compliantGainPercentage)
         );
+
+        return maxNewStakeAfterRound.sub(totalUserStake);
+    }
+
+    function _ensureContractIsFundedForNextRound() private view {
+        uint256 minOwnerFunds = _computeMinOwnerFunds();
+
         require(
-            ownerFunds > maxPayout,
+            ownerFunds > minOwnerFunds,
             "Pool is not sufficiently funded by owner!"
         );
     }
