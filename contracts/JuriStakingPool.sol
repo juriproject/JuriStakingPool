@@ -1,4 +1,4 @@
-pragma solidity 0.5.7;
+pragma solidity 0.5.8;
 
 import "./lib/IERC20.sol";
 import "./lib/Math.sol";
@@ -395,15 +395,13 @@ contract JuriStakingPool is Ownable {
             .add(_updateIterationCount) > users.length
         ) {
             require(
-                currentStakingRound.addComplianceDataIndex.add(_wasCompliant.length) == users.length,
+                currentStakingRound.addComplianceDataIndex
+                    .add(_wasCompliant.length) == users.length,
                 "Compliance data length must match pool users array!"
             );
         }
 
-        // require(_wasCompliant.length > 0, "Must pass new data to add!"); TODO
-        // (commented out because of first period)
-
-        // Commented out, because currently not supported to add multiple
+        // Commented out, because currently not supported anyways to add multiple
         // compliance data lists due to stage restriction.
         /* require(
             complianceDataIndex <= currentStakingPeriodIndex,
@@ -425,7 +423,8 @@ contract JuriStakingPool is Ownable {
         for (
             uint256 i = currentStakingRound.addComplianceDataIndex;
             i < users.length && i <
-                currentStakingRound.addComplianceDataIndex.add(_updateIterationCount);
+                currentStakingRound.addComplianceDataIndex
+                    .add(_updateIterationCount);
             i++
         ) {
             complianceDataAtIndex[complianceDataIndex][users[i]]
@@ -434,7 +433,8 @@ contract JuriStakingPool is Ownable {
         }
 
         currentStakingRound.addComplianceDataIndex
-            = currentStakingRound.addComplianceDataIndex.add(_updateIterationCount);
+            = currentStakingRound.addComplianceDataIndex
+                .add(_updateIterationCount);
 
         if (currentStakingRound.addComplianceDataIndex >= users.length) {
             complianceDataIndex++;
@@ -457,7 +457,8 @@ contract JuriStakingPool is Ownable {
         for (
             uint256 i = currentStakingRound.updateStaking1Index;
             i < users.length && i <
-                currentStakingRound.updateStaking1Index.add(_updateIterationCount);
+                currentStakingRound.updateStaking1Index
+                    .add(_updateIterationCount);
             i++
         ) {
             address user = users[i];
@@ -486,7 +487,8 @@ contract JuriStakingPool is Ownable {
         }
 
         currentStakingRound.updateStaking1Index
-            = currentStakingRound.updateStaking1Index.add(_updateIterationCount);
+            = currentStakingRound.updateStaking1Index
+                .add(_updateIterationCount);
 
         if (currentStakingRound.updateStaking1Index >= users.length) {
             currentStakingRound.stage = Stages.AWAITING_SECOND_UPDATE;

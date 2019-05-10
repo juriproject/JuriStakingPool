@@ -28,6 +28,7 @@ const {
 } = require('./helpers')
 
 const itComputesCorrectRemovalIndices = require('./getRemovalIndices.test')
+const itAddsComplianceDataCorrectly = require('./addComplianceData.test')
 const itRunsFirstUpdateCorrectly = require('./firstUpdateStakeForNextXAmountOfUsers.test')
 const itRunsSecondUpdateCorrectly = require('./secondUpdateStakeForNextXAmountOfUsers.test')
 
@@ -139,6 +140,23 @@ contract('JuriStakingPool', accounts => {
       )
       expect(startTime).to.be.bignumber.gt(expectedEarliestTime)
       expect(startTime).to.be.bignumber.lt(expectedLatestTime)
+    })
+
+    describe('when adding comliance data', async () => {
+      /* describe('when there is only one user', async () => {
+        const addresses = [owner, user1]
+
+        itAddsComplianceDataCorrectly(addresses)
+      })
+      describe('when there are only a few users', async () => {
+        const addresses = [owner, user1, user2, user3]
+        itAddsComplianceDataCorrectly(addresses)
+      })
+      describe('when there are many users', async () => {
+        const addresses = accounts // all available addresses
+
+        itAddsComplianceDataCorrectly(addresses)
+      }) */
     })
 
     describe('when running the first update', async () => {

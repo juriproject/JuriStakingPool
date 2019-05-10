@@ -9,7 +9,7 @@ const removeUsers = async ({ pool, usersToRemove }) => {
   }
 }
 
-const itRunsFirstUpdateCorrectly = async addresses => {
+const itComputesCorrectRemovalIndices = async addresses => {
   describe('when computing removal indices', async () => {
     let pool, poolUsers, poolStakes, token, usersToRemove
 
@@ -82,4 +82,4 @@ const itRunsFirstUpdateCorrectly = async addresses => {
   })
 }
 
-module.exports = itRunsFirstUpdateCorrectly
+module.exports = itComputesCorrectRemovalIndices
