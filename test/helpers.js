@@ -76,7 +76,6 @@ const logPoolState = async (pool, { logLevel = 2 } = {}) => {
   const complianceDataIndex = (await pool.complianceDataIndex()).toString()
   const ownerFunds = (await pool.ownerFunds()).toString()
   const totalUserStake = (await pool.totalUserStake()).toString()
-  const removalIndices = await pool.getRemovalIndicesInUserList()
 
   try {
     const firstUserToAdd = (await pool.getUserToBeAddedNextPeriod(0)).toString()
@@ -102,7 +101,6 @@ const logPoolState = async (pool, { logLevel = 2 } = {}) => {
       userCount,
       complianceDataIndex,
       ownerFunds,
-      removalIndices,
     },
     { logLevel }
   )
@@ -167,7 +165,7 @@ const logComplianceDataForFirstPeriods = async ({ pool, users }) => {
 const approveAndAddUser = ({ pool, stake, token, user }) =>
   token
     .approve(pool.address, stake, { from: user })
-    .then(() => pool.addUserInNextPeriod({ from: user }))
+    .then(() => pool.addUserInNextPeriod(stake, { from: user }))
 
 const expectUserCountToBe = async ({ expectedUserCount, pool }) => {
   const userCount = await pool.getPoolUserCount()
@@ -230,10 +228,7 @@ const initialPoolSetup = async ({ pool, poolUsers, poolStakes, token }) => {
 
   await pool.addWasCompliantDataForUsers(defaultUpdateIterationCount, [])
   await pool.firstUpdateStakeForNextXAmountOfUsers(defaultUpdateIterationCount)
-  await pool.secondUpdateStakeForNextXAmountOfUsers(
-    defaultUpdateIterationCount,
-    []
-  )
+  await pool.secondUpdateStakeForNextXAmountOfUsers(defaultUpdateIterationCount)
 
   logger('************ After first period ************')
   await logPoolState(pool)
@@ -264,13 +259,13 @@ const runFullFirstUpdate = async ({
     i.lt(new BN(poolUsers.length));
     i = i.add(updateIterationCount)
   ) {
-    logger(`************ UPDATE ${i} ************`, { logLevel: 2 })
+    logger(`************ UPDATE1 ${i} ************`, { logLevel: 2 })
     logger('************ Before first update ************', { logLevel: 2 })
     await logPoolState(pool, { logLevel: 2 })
     await pool.firstUpdateStakeForNextXAmountOfUsers(updateIterationCount)
     logger('************ After first update ************', { logLevel: 2 })
     await logPoolState(pool, { logLevel: 2 })
-    logger(`************ FINISHED UPDATE ${i} ************`, { logLevel: 2 })
+    logger(`************ FINISHED UPDATE1 ${i} ************`, { logLevel: 2 })
   }
 }
 
@@ -284,11 +279,13 @@ const runFullSecondUpdate = async ({
     i.lt(new BN(poolUsers.length));
     i = i.add(updateIterationCount)
   ) {
-    const removalIndices = await pool.getRemovalIndicesInUserList()
-    await pool.secondUpdateStakeForNextXAmountOfUsers(
-      updateIterationCount,
-      removalIndices
-    )
+    logger(`************ UPDATE2 ${i} ************`, { logLevel: 2 })
+    logger('************ Before second update ************', { logLevel: 2 })
+    await logPoolState(pool, { logLevel: 2 })
+    await pool.secondUpdateStakeForNextXAmountOfUsers(updateIterationCount)
+    logger('************ After second update ************', { logLevel: 2 })
+    await logPoolState(pool, { logLevel: 2 })
+    logger(`************ FINISHED UPDATE2 ${i} ************`, { logLevel: 2 })
   }
 }
 

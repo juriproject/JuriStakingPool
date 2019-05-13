@@ -48,8 +48,8 @@ contract JuriStakingPool is Ownable {
     struct NextStakingRound {
         mapping (address => bool) userIsStaking;
         mapping (address => uint256) addedUserStakes;
+        mapping (address => bool) userIsLeaving;
         address[] usersToAdd;
-        address[] usersToRemove;
     }
 
     IERC20 public token;
@@ -100,6 +100,18 @@ contract JuriStakingPool is Ownable {
         require(
             !_isInArray(msg.sender, users),
             "Only non-members can use this function!"
+        );
+
+        _;
+    }
+
+    /**
+     * @dev Throws if called by any pool user account.
+     */
+    modifier isNotPendingPoolUser() {
+        require(
+            !_isInArray(msg.sender, nextStakingRound.usersToAdd),
+            "Only non-pending pool users can use this function!"
         );
 
         _;
@@ -190,26 +202,17 @@ contract JuriStakingPool is Ownable {
 
     /**
      * @dev Add user to pool once next staking period starts.
+     * @param _amount The amount to be added as stake for the user.
      */
-    function addUserInNextPeriod()
+    function addUserInNextPeriod(uint256 _amount)
         public
+        isNotPendingPoolUser
         isNotPoolUser
         atStage(Stages.AWAITING_COMPLIANCE_DATA)
     {
-        uint256 addedStakeAmount = token.allowance(msg.sender, address(this));
-
-        require(
-            addedStakeAmount > poolDefinition.minStakePerUser,
-            "You need to pass the minStakePerUser to add yourself!"
-        );
-        require(
-            token.transferFrom(msg.sender, address(this), addedStakeAmount),
-            "Token transfer failed!"
-        );
-
-        nextStakingRound.addedUserStakes[msg.sender] = addedStakeAmount;
         nextStakingRound.usersToAdd.push(msg.sender);
 
+        addMoreStakeForNextPeriod(_amount);
         optInForStakingForNextPeriod();
     }
 
@@ -222,17 +225,19 @@ contract JuriStakingPool is Ownable {
         atStage(Stages.AWAITING_COMPLIANCE_DATA)
     {
         require(
-            !_isInArray(msg.sender, nextStakingRound.usersToRemove),
+            !nextStakingRound.userIsLeaving[msg.sender],
             "User already marked for removal!"
         );
 
-        nextStakingRound.usersToRemove.push(msg.sender);
+        nextStakingRound.userIsLeaving[msg.sender] = true;
+        optOutOfStakingForNextPeriod();
     }
 
     /**
      * @dev Add more stake for user once next staking period starts.
+     * @param _amount The amount to be added as stake.
      */
-    function addMoreStakeForNextPeriod()
+    function addMoreStakeForNextPeriod(uint256 _amount)
         public
         atStage(Stages.AWAITING_COMPLIANCE_DATA)
         /* TODO isPoolUser */
@@ -243,12 +248,8 @@ contract JuriStakingPool is Ownable {
             = currentStakingRound.userStakes[msg.sender];
         uint256 stakeInNextPeriod
             = nextStakingRound.addedUserStakes[msg.sender];
-        uint256 addedStakeAmount = token.allowance(msg.sender, address(this));
 
-        require(
-            addedStakeAmount > 0,
-            "No new token funds approved for staking!"
-        );
+        require(_amount > 0, "No new token funds approved for staking!");
         require(
             stakeInCurrentPeriod.add(stakeInNextPeriod) < poolDefinition.maxStakePerUser,
             "Cannot add more funds for user, because the max per user is reached!"
@@ -258,12 +259,12 @@ contract JuriStakingPool is Ownable {
             "Cannot add more funds to pool, because the max in pool is reached!"
         );
         require(
-            token.transferFrom(msg.sender, address(this), addedStakeAmount),
+            token.transferFrom(msg.sender, address(this), _amount),
             "Token transfer failed!"
         );
 
-        uint256 newStakeInNextPeriod = stakeInNextPeriod.add(addedStakeAmount);
-        uint256 adjustedAddedStake = addedStakeAmount;
+        uint256 newStakeInNextPeriod = stakeInNextPeriod.add(_amount);
+        uint256 adjustedAddedStake = _amount;
 
         if (
             stakeInCurrentPeriod.add(newStakeInNextPeriod)
@@ -286,8 +287,8 @@ contract JuriStakingPool is Ownable {
             );
         }
 
-        if (adjustedAddedStake < addedStakeAmount) {
-            uint256 refund = addedStakeAmount.sub(adjustedAddedStake);
+        if (adjustedAddedStake < _amount) {
+            uint256 refund = _amount.sub(adjustedAddedStake);
             require(
                 token.transfer(msg.sender, refund),
                 "Token refund failed!"
@@ -471,7 +472,7 @@ contract JuriStakingPool is Ownable {
                 [currentStakingRound.roundIndex]
                 [user];
 
-            uint256 stake = _getCurrentStakeForUser(user);
+            uint256 stake = getStakeForUserInCurrentPeriod(user);
 
             if (wasCompliant) {
                 uint256 newStake = _computeNewCompliantStake(stake);
@@ -499,22 +500,14 @@ contract JuriStakingPool is Ownable {
      * @dev Second part for updating stakes of users for next X users.
      * @param _updateIterationCount The number defining how many users should
      * be updated in a single function call to prevent out-of-gas errors.
-     * @param _removalIndices Indices for removing users, can be retrieved
-     * by calling `getRemovalIndicesInUserList` first.
      */
     function secondUpdateStakeForNextXAmountOfUsers(
-        uint256 _updateIterationCount,
-        uint256[] memory _removalIndices
+        uint256 _updateIterationCount
     )
         public
         onlyOwner
         atStage(Stages.AWAITING_SECOND_UPDATE)
     {
-        require(
-            _removalIndices.length == nextStakingRound.usersToRemove.length,
-            "Please pass _removalIndices by calling `getRemovalIndicesInUserList`!"
-        );
-
         if (currentStakingRound.updateStaking2Index == 0) {
             currentStakingRound.useMaxNonCompliancy = _computeUseMaxNonCompliancy();
         }
@@ -526,17 +519,13 @@ contract JuriStakingPool is Ownable {
             i++
         ) {
             address user = users[i];
-            bool wasCompliant = complianceDataAtIndex
-                [currentStakingRound.roundIndex]
-                [user];
+            _handleSecondUpdateForUser(user);
 
-            if (!wasCompliant && currentStakingRound.userIsStaking[user]) {
-                uint256 oldStake = _getCurrentStakeForUser(user);
-                uint256 newStake = _computeNewNonCompliantStake(oldStake);
-                _moveStakeToNextPeriod(user, newStake);
+            if (nextStakingRound.userIsLeaving[user]) {
+                nextStakingRound.userIsLeaving[user] = false;
+                _removeUserAtIndex(i);
+                i--; // adapt to decremented user array
             }
-
-            _moveUserToNextRound(user);
         }
 
         currentStakingRound.updateStaking2Index
@@ -545,7 +534,7 @@ contract JuriStakingPool is Ownable {
         if (currentStakingRound.updateStaking2Index >= users.length) {
             _handleJuriFees();
             _handleUnderwriting();
-            _resetPoolForNextPeriod(_removalIndices);
+            _resetPoolForNextPeriod();
         }
     }
 
@@ -560,51 +549,10 @@ contract JuriStakingPool is Ownable {
     }
 
     /**
-     * @dev Retrieve removal indices indicating the positions in user array of
-     * users to be removed before next staking period starts, to be used before
-     * calling `secondUpdateStakeForNextXAmountOfUsers`.
-     */
-    function getRemovalIndicesInUserList()
-        public
-        view
-        returns (uint256[] memory)
-    {
-        uint256[] memory indices
-            = new uint256[](nextStakingRound.usersToRemove.length);
-
-        for (uint256 i = 0; i < nextStakingRound.usersToRemove.length; i++) {
-            uint256 index = uint256(
-                _getIndexInArray(nextStakingRound.usersToRemove[i], users)
-            );
-            indices[i] = index;
-        }
-
-        return indices;
-    }
-
-    /**
      * @dev Get the total pool user count.
      */
     function getPoolUserCount() public view returns (uint256) {
         return users.length;
-    }
-
-    /**
-     * @dev Get the stake for calling user in current period.
-     */
-    function getStakeForUserInCurrentPeriod() public view returns (uint256) {
-        return _getCurrentStakeForUser(msg.sender);
-    }
-
-    /**
-     * @dev Get the added stake for calling user in next period.
-     */
-    function getAdditionalStakeForUserInNextPeriod()
-        public
-        view
-        returns (uint256)
-    {
-        return _getAddedStakeNextPeriodForUser(msg.sender);
     }
 
     /**
@@ -621,16 +569,48 @@ contract JuriStakingPool is Ownable {
     }
 
     /**
-     * @dev Read users to be removed in the next round.
-     * @param _index The index in the array of pending user removals.
-     * @return The user to be removed.
+     * @dev Read if calling user is staking in the next round.
+     * @return The boolean indicator if user will be staking next round.
      */
-    function getUserToBeRemovedNextPeriod(uint256 _index)
+    function getNextRoundStaking()
         public
         view
-        returns (address)
+        returns (bool)
     {
-        return nextStakingRound.usersToRemove[_index];
+        return nextStakingRound.userIsStaking[msg.sender];
+    }
+
+    /**
+     * @dev Read if user will be removed in the next round.
+     * @param _user The user to be checked.
+     * @return The boolean indicator showing if user is leaving next round.
+     */
+    function getIsLeavingNextPeriodForUser(address _user)
+        public
+        view
+        returns (bool)
+    {
+        return nextStakingRound.userIsLeaving[_user];
+    }
+
+    /**
+     * @dev Get current stake for user.
+     * @return The amount of stake in the current round for user.
+     */
+    function getStakeForUserInCurrentPeriod(
+        address _user
+    ) public view returns (uint256) {
+        return currentStakingRound.userStakes[_user];
+    }
+
+    /**
+     * @dev Get added stake for user.
+     * @return The amount of stake added in the next round for user.
+     */
+    function getAdditionalStakeForUserInNextPeriod(
+        address _user
+    ) public view returns (uint256) {
+        return nextStakingRound.addedUserStakes[_user];
     }
 
     /**
@@ -676,18 +656,6 @@ contract JuriStakingPool is Ownable {
         return currentStakingRound.roundIndex + 1;
     }
 
-    function _getCurrentStakeForUser(
-        address _user
-    ) private view returns (uint256) {
-        return currentStakingRound.userStakes[_user];
-    }
-
-    function _getAddedStakeNextPeriodForUser(
-        address _user
-    ) private view returns (uint256) {
-        return nextStakingRound.addedUserStakes[_user];
-    }
-
     function _moveStakeToNextPeriod(address _user, uint256 _newStake) private {
         uint256 oldStake = currentStakingRound.userStakes[_user];
         uint256 updatedStake = nextStakingRound.addedUserStakes[_user]
@@ -706,7 +674,7 @@ contract JuriStakingPool is Ownable {
         uint256 _amount,
         bool _canWithdrawAll
     ) private {
-        uint256 stake = _getCurrentStakeForUser(_user);
+        uint256 stake = getStakeForUserInCurrentPeriod(_user);
         uint256 lossPercentage = uint256(100)
             .sub(poolDefinition.maxNonCompliantPenaltyPercentage);
 
@@ -736,7 +704,9 @@ contract JuriStakingPool is Ownable {
         address _user,
         uint256 _amount
     ) private returns (uint256) {
-        uint256 stakeForNextPeriod = _getAddedStakeNextPeriodForUser(_user);
+        uint256 stakeForNextPeriod = getAdditionalStakeForUserInNextPeriod(
+            _user
+        );
 
         if (_amount < stakeForNextPeriod) {
             nextStakingRound.addedUserStakes[_user]
@@ -780,28 +750,17 @@ contract JuriStakingPool is Ownable {
         }
     }
 
-    function _removePendingUsers(uint256[] memory _removalIndices) private {
-        for (uint256 i = 0; i < nextStakingRound.usersToRemove.length; i++) {
-            require(
-                users[_removalIndices[i]] == nextStakingRound.usersToRemove[i],
-                "Please pass removal indices according to getRemovalIndicesInUserList()!"
-            );
-
-            assert(users.length > 0);
-
-            _removePoolUserAtIndex(_removalIndices[i]);
-        }
-    }
-
-    function _removePoolUserAtIndex(uint256 _index) private {
+    function _removeUserAtIndex(uint256 _index) private {
         address userToRemove = users[_index];
 
-        uint256 userBalance = _getCurrentStakeForUser(userToRemove)
-            .add(_getAddedStakeNextPeriodForUser(userToRemove));
+        uint256 userBalance = getStakeForUserInCurrentPeriod(userToRemove)
+            .add(getAdditionalStakeForUserInNextPeriod(userToRemove));
         bool canWithdrawAll = true;
         _withdrawForUser(userToRemove, userBalance, canWithdrawAll);
 
-        users[_index] = users[users.length.sub(1)]; // changes order in users!
+        if (users.length > 1) {
+            users[_index] = users[users.length.sub(1)]; // changes order in users!
+        }
         users.length--;
     }
 
@@ -820,6 +779,20 @@ contract JuriStakingPool is Ownable {
             ownerFunds > minOwnerFunds,
             "Pool is not sufficiently funded by owner!"
         );
+    }
+
+    function _handleSecondUpdateForUser(address _user) private {
+        bool wasCompliant = complianceDataAtIndex
+            [currentStakingRound.roundIndex]
+            [_user];
+
+        if (!wasCompliant && currentStakingRound.userIsStaking[_user]) {
+            uint256 oldStake = getStakeForUserInCurrentPeriod(_user);
+            uint256 newStake = _computeNewNonCompliantStake(oldStake);
+            _moveStakeToNextPeriod(_user, newStake);
+        }
+
+        _moveUserToNextRound(_user);
     }
 
     function _computeNewCompliantStake(uint256 _userStake)
@@ -866,7 +839,7 @@ contract JuriStakingPool is Ownable {
     }
 
     function _moveUserToNextRound(address _user) private {
-        uint256 stake = _getCurrentStakeForUser(_user);
+        uint256 stake = getStakeForUserInCurrentPeriod(_user);
 
         if (!currentStakingRound.userIsStaking[_user]) {
             currentStakingRound.userStakes[_user]
@@ -916,14 +889,12 @@ contract JuriStakingPool is Ownable {
         );
 
         nextStakingRound = NextStakingRound(
-            new address[](0),
             new address[](0)
         );
     }
 
-    function _resetPoolForNextPeriod(uint256[] memory _removalIndices) private {
+    function _resetPoolForNextPeriod() private {
         _addPendingUsers();
-        _removePendingUsers(_removalIndices);
 
         _setStakingPeriodVariables(currentStakingRound.roundIndex + 1);
         _ensureContractIsFundedForNextRound();

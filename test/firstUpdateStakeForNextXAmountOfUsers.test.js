@@ -98,13 +98,11 @@ const itRunsFirstUpdateCorrectly = async addresses => {
 
     describe('when called in stage AWAITING_COMPLIANCE_DATA', async () => {
       beforeEach(async () => {
-        const removalIndices = await pool.getRemovalIndicesInUserList()
         await pool.firstUpdateStakeForNextXAmountOfUsers(
           defaultUpdateIterationCount
         )
         await pool.secondUpdateStakeForNextXAmountOfUsers(
-          defaultUpdateIterationCount,
-          removalIndices
+          defaultUpdateIterationCount
         )
       })
 
@@ -215,7 +213,9 @@ const itRunsFirstUpdateCorrectly = async addresses => {
                 from: poolUsers[i],
               })
 
-              await pool.addMoreStakeForNextPeriod({ from: poolUsers[i] })
+              await pool.addMoreStakeForNextPeriod(addedUserStakes[i], {
+                from: poolUsers[i],
+              })
             }
 
             await runFullComplianceDataAddition({

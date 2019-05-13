@@ -9,7 +9,7 @@ const {
 const { deployJuriStakingPool, initialPoolSetup, Stages } = require('./helpers')
 
 const itAddsComplianceDataCorrectly = async addresses => {
-  describe('when adding comliance data', async () => {
+  describe('when adding compliance data', async () => {
     let complianceData, complianceDataIndex, pool, poolUsers, poolStakes, token
 
     beforeEach(async () => {
@@ -134,7 +134,7 @@ const itAddsComplianceDataCorrectly = async addresses => {
             )
           })
 
-          it.only('stores the compliance data at correct index', async () => {
+          it('stores the compliance data at correct index', async () => {
             const complianceDataForUsers = await Promise.all(
               poolUsers.map((user, i) =>
                 new BN(i).gte(updateIterationCount)

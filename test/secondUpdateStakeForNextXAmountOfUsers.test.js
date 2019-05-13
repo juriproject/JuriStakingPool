@@ -90,8 +90,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
       it('does not revert the transaction', async () => {
         try {
           await pool.secondUpdateStakeForNextXAmountOfUsers(
-            defaultUpdateIterationCount,
-            []
+            defaultUpdateIterationCount
           )
         } catch (error) {
           assert.fail(
@@ -101,24 +100,11 @@ const itRunsSecondUpdateCorrectly = async addresses => {
       })
     })
 
-    describe('when called by owner', async () => {
-      it('does not revert the transaction', async () => {
-        await shouldFail.reverting.withMessage(
-          pool.secondUpdateStakeForNextXAmountOfUsers(
-            defaultUpdateIterationCount,
-            [0]
-          ),
-          'Please pass _removalIndices by calling `getRemovalIndicesInUserList`!'
-        )
-      })
-    })
-
     describe('when not called by owner', async () => {
       it('reverts the transaction', async () => {
         await shouldFail.reverting.withMessage(
           pool.secondUpdateStakeForNextXAmountOfUsers(
             defaultUpdateIterationCount,
-            [],
             {
               from: poolUsers[0],
             }
@@ -131,16 +117,14 @@ const itRunsSecondUpdateCorrectly = async addresses => {
     describe('when called in stage AWAITING_COMPLIANCE_DATA', async () => {
       beforeEach(async () => {
         await pool.secondUpdateStakeForNextXAmountOfUsers(
-          defaultUpdateIterationCount,
-          []
+          defaultUpdateIterationCount
         )
       })
 
       it('reverts the transaction', async () => {
         await shouldFail.reverting.withMessage(
           pool.secondUpdateStakeForNextXAmountOfUsers(
-            defaultUpdateIterationCount,
-            []
+            defaultUpdateIterationCount
           ),
           "Function can't be called at this time!"
         )
@@ -164,8 +148,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
       it('reverts the transaction', async () => {
         await shouldFail.reverting.withMessage(
           pool.secondUpdateStakeForNextXAmountOfUsers(
-            defaultUpdateIterationCount,
-            []
+            defaultUpdateIterationCount
           ),
           "Function can't be called at this time!"
         )
@@ -204,7 +187,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
 
         it('computes it correctly', async () => {
           if (poolUsers.length > 1) {
-            await pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1), [])
+            await pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1))
             const { useMaxNonCompliancy } = await pool.currentStakingRound()
 
             expect(useMaxNonCompliancy).to.be.true
@@ -234,7 +217,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
 
         it('computes it correctly', async () => {
           if (poolUsers.length > 1) {
-            await pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1), [])
+            await pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1))
             const { useMaxNonCompliancy } = await pool.currentStakingRound()
 
             expect(useMaxNonCompliancy).to.be.false
@@ -247,8 +230,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
       beforeEach(async () => {
         if (poolUsers.length > 1) {
           await pool.secondUpdateStakeForNextXAmountOfUsers(
-            poolUsers.length - 1,
-            []
+            poolUsers.length - 1
           )
         }
       })
@@ -258,7 +240,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
           const juriAddress = getDefaultJuriAddress()
           const balanceBefore = await token.balanceOf(juriAddress)
 
-          await pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1), [])
+          await pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1))
 
           const balanceAfter = await token.balanceOf(juriAddress)
 
@@ -321,7 +303,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
             const juriAddress = getDefaultJuriAddress()
             const balanceBefore = await token.balanceOf(juriAddress)
 
-            await pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1), [])
+            await pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1))
 
             const balanceAfter = await token.balanceOf(juriAddress)
 
@@ -348,7 +330,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
           it('underwrites the liablity from owner funds', async () => {
             const ownerFundsBefore = await pool.ownerFunds()
 
-            await pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1), [])
+            await pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1))
 
             const ownerFundsAfter = await pool.ownerFunds()
             const expectedUnderWriterLiability = computeUnderWriterLiability({
@@ -399,7 +381,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
           it('does not underwrite', async () => {
             const ownerFundsBefore = await pool.ownerFunds()
 
-            await pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1), [])
+            await pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1))
 
             const ownerFundsAfter = await pool.ownerFunds()
 
@@ -426,8 +408,6 @@ const itRunsSecondUpdateCorrectly = async addresses => {
             await time.increase(defaultPeriodLength)
 
             await pool.withdrawOwnerFunds(ONE_HUNDRED_TOKEN)
-            await pool.addUserInNextPeriod({ from: addresses[0] })
-            await pool.removeUserInNextPeriod({ from: poolUsers[0] })
 
             complianceData = new Array(poolUsers.length).fill(true)
             await pool.addWasCompliantDataForUsers(
@@ -450,7 +430,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
 
           it('reverts the last update', async () => {
             await shouldFail.reverting.withMessage(
-              pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1), []),
+              pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1)),
               'Pool is not sufficiently funded by owner!'
             )
           })
@@ -458,7 +438,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
 
         describe('when contract is sufficiently funded for next round', async () => {
           it('sets the staking period variables for next round', async () => {
-            await pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1), [])
+            await pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1))
 
             const {
               addComplianceDataIndex,
@@ -495,7 +475,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
           })
 
           it('computes the juri fees and sets total payout to fees', async () => {
-            await pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1), [])
+            await pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1))
 
             const { juriFees, totalPayout } = await pool.currentStakingRound()
             const expectedJuriFees = computeJuriFees({
@@ -611,7 +591,9 @@ const itRunsSecondUpdateCorrectly = async addresses => {
                 from: poolUsers[i],
               })
 
-              await pool.addMoreStakeForNextPeriod({ from: poolUsers[i] })
+              await pool.addMoreStakeForNextPeriod(addedUserStakes[i], {
+                from: poolUsers[i],
+              })
             }
 
             await runFullComplianceDataAddition({
@@ -829,8 +811,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
 
         it('computes the new stakes correctly', async () => {
           await pool.secondUpdateStakeForNextXAmountOfUsers(
-            defaultUpdateIterationCount,
-            []
+            defaultUpdateIterationCount
           )
 
           for (let i = 0; i < poolUsers.length / 2 - 1; i++) {
@@ -903,8 +884,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
 
         it('computes the new stakes correctly', async () => {
           await pool.secondUpdateStakeForNextXAmountOfUsers(
-            defaultUpdateIterationCount,
-            []
+            defaultUpdateIterationCount
           )
 
           for (let i = 0; i < poolUsers.length / 2 - 1; i++) {

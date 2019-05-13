@@ -15,9 +15,7 @@ const {
 } = require('./defaults')
 
 const {
-  approveAndAddUser,
   deployJuriStakingPool,
-  expectUserCountToBe,
   initialPoolSetup,
   logComplianceDataForFirstPeriods,
   logFirstUsers,
@@ -27,7 +25,8 @@ const {
   logUserBalancesForFirstPeriods,
 } = require('./helpers')
 
-const itComputesCorrectRemovalIndices = require('./getRemovalIndices.test')
+const itAddsNewUsersCorrectly = require('./addUserInNextPeriod.test')
+const itRemovesNewUsersCorrectly = require('./removeUserInNextPeriod.test')
 const itAddsComplianceDataCorrectly = require('./addComplianceData.test')
 const itRunsFirstUpdateCorrectly = require('./firstUpdateStakeForNextXAmountOfUsers.test')
 const itRunsSecondUpdateCorrectly = require('./secondUpdateStakeForNextXAmountOfUsers.test')
@@ -35,7 +34,7 @@ const itRunsSecondUpdateCorrectly = require('./secondUpdateStakeForNextXAmountOf
 contract('JuriStakingPool', accounts => {
   let juriStakingPool
 
-  const [owner, user1, user2, user3, user4] = accounts
+  const [owner, user1, user2, user3, user4, user5, user6] = accounts
 
   beforeEach(() => setDefaultJuriAddress(owner))
 
@@ -47,8 +46,6 @@ contract('JuriStakingPool', accounts => {
     }) */
     // logger('************ IsStaking before round ************')
     // await logIsStaking({ pool, users: poolUsers })
-
-    const removalIndices = await juriStakingPool.getRemovalIndicesInUserList()
 
     await time.increase(defaultPeriodLength)
     const receipt0 = await pool.addWasCompliantDataForUsers(
@@ -75,8 +72,7 @@ contract('JuriStakingPool', accounts => {
     await logPoolState(pool)
 
     const receipt2 = await pool.secondUpdateStakeForNextXAmountOfUsers(
-      defaultUpdateIterationCount,
-      removalIndices
+      defaultUpdateIterationCount
     )
     const gasUsedSecondUpdate = receipt2.receipt.gasUsed
 
@@ -142,75 +138,115 @@ contract('JuriStakingPool', accounts => {
       expect(startTime).to.be.bignumber.lt(expectedLatestTime)
     })
 
-    describe('when adding comliance data', async () => {
-      /* describe('when there is only one user', async () => {
-        const addresses = [owner, user1]
+    describe('when adding new users', async () => {
+      if (process.env.FULL_TESTING === 'true') {
+        describe('when there is only one user', async () => {
+          const addresses = [owner, user1]
+          const addressesToAdd = [user2, user3, user4]
 
-        itAddsComplianceDataCorrectly(addresses)
-      })
-      describe('when there are only a few users', async () => {
-        const addresses = [owner, user1, user2, user3]
-        itAddsComplianceDataCorrectly(addresses)
-      })
-      describe('when there are many users', async () => {
-        const addresses = accounts // all available addresses
+          itAddsNewUsersCorrectly({ addresses, addressesToAdd })
+        })
 
-        itAddsComplianceDataCorrectly(addresses)
-      }) */
+        describe('when there are many users', async () => {
+          const addresses = accounts.slice(0, accounts.length - 3)
+          const addressesToAdd = accounts.slice(accounts.length - 3)
+
+          itAddsNewUsersCorrectly({ addresses, addressesToAdd })
+        })
+      } else {
+        describe('when there are only a few users', async () => {
+          const addresses = [owner, user1, user2, user3]
+          const addressesToAdd = [user4, user5, user6]
+
+          itAddsNewUsersCorrectly({ addresses, addressesToAdd })
+        })
+      }
+    })
+
+    describe('when removing users', async () => {
+      if (process.env.FULL_TESTING === 'true') {
+        describe('when there is only one user', async () => {
+          const addresses = [owner, user1]
+
+          itRemovesNewUsersCorrectly(addresses)
+        })
+
+        describe('when there are many users', async () => {
+          const addresses = accounts
+
+          itRemovesNewUsersCorrectly(addresses)
+        })
+      } else {
+        describe('when there are only a few users', async () => {
+          const addresses = [owner, user1, user2, user3]
+          itRemovesNewUsersCorrectly(addresses)
+        })
+      }
+    })
+
+    describe('when adding compliance data', async () => {
+      if (process.env.FULL_TESTING === 'true') {
+        describe('when there is only one user', async () => {
+          const addresses = [owner, user1]
+
+          itAddsComplianceDataCorrectly(addresses)
+        })
+
+        describe('when there are many users', async () => {
+          const addresses = accounts // all available addresses
+
+          itAddsComplianceDataCorrectly(addresses)
+        })
+      } else {
+        describe('when there are only a few users', async () => {
+          const addresses = [owner, user1, user2, user3]
+          itAddsComplianceDataCorrectly(addresses)
+        })
+      }
     })
 
     describe('when running the first update', async () => {
-      /* describe('when there is only one user', async () => {
-        const addresses = [owner, user1]
+      if (process.env.FULL_TESTING === 'true') {
+        describe('when there is only one user', async () => {
+          const addresses = [owner, user1]
 
-        itRunsFirstUpdateCorrectly(addresses)
-      }) */
-      /* describe.only('when there are only a few users', async () => {
-        const addresses = [owner, user1, user2, user3]
+          itRunsFirstUpdateCorrectly(addresses)
+        })
 
-        itRunsFirstUpdateCorrectly(addresses)
-      }) */
-      /* describe('when there are many users', async () => {
-        const addresses = accounts // all available addresses
+        describe('when there are many users', async () => {
+          const addresses = accounts // all available addresses
 
-        itRunsFirstUpdateCorrectly(addresses)
-      }) */
+          itRunsFirstUpdateCorrectly(addresses)
+        })
+      } else {
+        describe('when there are only a few users', async () => {
+          const addresses = [owner, user1, user2, user3]
+
+          itRunsFirstUpdateCorrectly(addresses)
+        })
+      }
     })
 
     describe('when running the second update', async () => {
-      /* describe('when there is only one user', async () => {
-        const addresses = [owner, user1]
+      if (process.env.FULL_TESTING === 'true') {
+        describe('when there is only one user', async () => {
+          const addresses = [owner, user1]
 
-        itRunsSecondUpdateCorrectly(addresses)
-      })
-       describe.only('when there are only a few users', async () => {
-        const addresses = [owner, user1, user2, user3]
+          itRunsSecondUpdateCorrectly(addresses)
+        })
 
-        itRunsSecondUpdateCorrectly(addresses)
-      })
-      describe('when there are many users', async () => {
-        const addresses = accounts // all available addresses
+        describe('when there are many users', async () => {
+          const addresses = accounts // all available addresses
 
-        itRunsSecondUpdateCorrectly(addresses)
-      }) */
-    })
+          itRunsSecondUpdateCorrectly(addresses)
+        })
+      } else {
+        describe('when there are only a few users', async () => {
+          const addresses = [owner, user1, user2, user3]
 
-    describe('when receiving the removal indices', async () => {
-      /* describe('when there is only one user', async () => {
-        const addresses = [owner, user1]
-
-        itRunsSecondUpdateCorrectly(addresses)
-      })
-      describe('when there are only a few users', async () => {
-        const addresses = [owner, user1, user2, user3]
-
-        itComputesCorrectRemovalIndices(addresses)
-      })
-      describe('when there are many users', async () => {
-        const addresses = accounts // all available addresses
-
-        itRunsSecondUpdateCorrectly(addresses)
-      }) */
+          itRunsSecondUpdateCorrectly(addresses)
+        })
+      }
     })
 
     describe('when running pool rounds', async () => {
@@ -340,83 +376,6 @@ contract('JuriStakingPool', accounts => {
       })
     })
 
-    describe('when adding users', async () => {
-      it('requires a minimum stake', async () => {
-        await shouldFail.reverting.withMessage(
-          approveAndAddUser({
-            pool: juriStakingPool,
-            token,
-            stake: 5,
-            user: user1,
-          }),
-          'You need to pass the minStakePerUser to add yourself!'
-        )
-      })
-    })
-
-    describe('when removing users', async () => {
-      it('removes them after a round', async () => {
-        let poolUsers = [user1, user2, user3, user4]
-        const poolStakes = [1000, 1000, 1000, 1000]
-
-        await initialPoolSetup({
-          pool: juriStakingPool,
-          poolUsers,
-          poolStakes,
-          token,
-        })
-
-        const complianceData = [
-          [false, false, true, true],
-          [true, true],
-          [false, false],
-          [true],
-        ]
-        const poolRounds = 4
-
-        for (let i = 0; i < poolRounds; i++) {
-          switch (i) {
-            case 0:
-              await juriStakingPool.removeUserInNextPeriod({ from: user1 })
-              await juriStakingPool.removeUserInNextPeriod({ from: user2 })
-              break
-
-            case 1:
-              poolUsers = [user3, user4]
-              break
-
-            case 2:
-              await juriStakingPool.removeUserInNextPeriod({ from: user3 })
-              break
-
-            case 3:
-              poolUsers = [user4]
-              await juriStakingPool.removeUserInNextPeriod({ from: user4 })
-              break
-
-            default:
-              break
-          }
-
-          await expectUserCountToBe({
-            pool: juriStakingPool,
-            expectedUserCount: poolUsers.length,
-          })
-
-          await runPoolRound({
-            complianceData: complianceData[i],
-            pool: juriStakingPool,
-            poolUsers,
-          })
-        }
-
-        await expectUserCountToBe({
-          pool: juriStakingPool,
-          expectedUserCount: 0,
-        })
-      })
-    })
-
     describe('when adding more stake', async () => {
       it('adds stake to next period', async () => {
         const initialUserStake = new BN(5000)
@@ -432,7 +391,9 @@ contract('JuriStakingPool', accounts => {
         await token.approve(juriStakingPool.address, addedUserStake, {
           from: user1,
         })
-        await juriStakingPool.addMoreStakeForNextPeriod({ from: user1 })
+        await juriStakingPool.addMoreStakeForNextPeriod(addedUserStake, {
+          from: user1,
+        })
 
         const stakeAtCurrentPeriod = await juriStakingPool.getStakeForUserInCurrentPeriod(
           { from: user1 }
@@ -461,7 +422,9 @@ contract('JuriStakingPool', accounts => {
           })
 
           await shouldFail.reverting.withMessage(
-            juriStakingPool.addMoreStakeForNextPeriod({ from: user1 }),
+            juriStakingPool.addMoreStakeForNextPeriod(ONE_HUNDRED_TOKEN, {
+              from: user1,
+            }),
             'Cannot add more funds for user, because the max per user is reached!'
           )
         })
@@ -479,24 +442,22 @@ contract('JuriStakingPool', accounts => {
           await token.approve(juriStakingPool.address, ONE_HUNDRED_TOKEN, {
             from: user2,
           })
-          await juriStakingPool.addMoreStakeForNextPeriod({ from: user2 })
+          await juriStakingPool.addMoreStakeForNextPeriod(ONE_HUNDRED_TOKEN, {
+            from: user2,
+          })
 
           await token.approve(juriStakingPool.address, ONE_HUNDRED_TOKEN, {
             from: user3,
           })
 
           await shouldFail.reverting.withMessage(
-            juriStakingPool.addMoreStakeForNextPeriod({ from: user3 }),
+            juriStakingPool.addMoreStakeForNextPeriod(ONE_HUNDRED_TOKEN, {
+              from: user3,
+            }),
             'Cannot add more funds to pool, because the max in pool is reached!'
           )
         })
       })
     })
-
-    // TODO
-    describe('when switching to next staking period', async () => {})
-    describe('when ...', async () => {})
-    describe('when ...', async () => {})
-    describe('when ...', async () => {})
   })
 })
