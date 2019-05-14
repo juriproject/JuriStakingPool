@@ -1,67 +1,80 @@
 const { setDefaultJuriAddress } = require('./defaults')
-
 const { deployJuriStakingPool, itSetsPoolDefinition } = require('./helpers')
 
-const itRunsPoolRoundsCorrectly = require('./shortTest.test')
-const itRunsCorrectlyWithFewUsers = require('./middleTest.test')
-const {
-  itRunsCorrectlyWithOneUser,
-  itRunsCorrectlyWithManyUsers,
-} = require('./fullTest.test')
+const itRunsPoolRoundsCorrectly = require('./quickTest.test')
+const itAddsNewUsersCorrectly = require('./addUserInNextPeriod.test')
+const itRemovesNewUsersCorrectly = require('./removeUserInNextPeriod.test')
+const itAddsComplianceDataCorrectly = require('./addComplianceData.test')
+const itRunsFirstUpdateCorrectly = require('./firstUpdateStakeForNextXAmountOfUsers.test')
+const itRunsSecondUpdateCorrectly = require('./secondUpdateStakeForNextXAmountOfUsers.test')
 
-contract('JuriStakingPool', accounts => {
-  let juriStakingPool
-  const [owner, user1, user2, user3, user4, user5, user6] = accounts
+const itRunsTestsCorrectlyWithUsers = async ({ addresses, addressesToAdd }) => {
+  itAddsNewUsersCorrectly({ addresses, addressesToAdd })
+  itRemovesNewUsersCorrectly(addresses)
+  itAddsComplianceDataCorrectly(addresses)
+  itRunsFirstUpdateCorrectly(addresses)
+  itRunsSecondUpdateCorrectly(addresses)
+}
 
-  beforeEach(() => setDefaultJuriAddress(owner))
+const runQuickTest = ({ owner, user1, user2, user3, user4 }) => {
+  describe('when running pool rounds', () => {
+    let pool, token
 
-  describe('when staking', async () => {
     beforeEach(async () => {
       const deployedContracts = await deployJuriStakingPool({
         addresses: [owner, user1, user2, user3, user4],
       })
 
-      juriStakingPool = deployedContracts.pool
+      pool = deployedContracts.pool
       token = deployedContracts.token
     })
 
-    if (process.env.TESTING_MODE === 'QUICK_TESTING') {
-      describe('when running pool rounds', async () => {
-        it('runs them correctly', async () => {
-          itRunsPoolRoundsCorrectly({
-            pool: juriStakingPool,
-            token,
-            user1,
-            user2,
-            user3,
-            user4,
-          })
-        })
-      })
-    } else {
-      it('sets poolDefinition', async () => {
-        itSetsPoolDefinition(juriStakingPool)
-      })
-      if (process.env.TESTING_MODE === 'FULL_TESTING') {
-        itRunsCorrectlyWithOneUser({
-          addresses: [owner, user1],
-          addressesToAdd: [user2, user3, user4],
-        })
-        itRunsCorrectlyWithManyUsers({
-          addresses: accounts.slice(0, accounts.length - 3),
-          addressesToAdd: accounts.slice(accounts.length - 3),
-        })
-      } else {
-        itRunsCorrectlyWithFewUsers({
-          owner,
-          user1,
-          user2,
-          user3,
-          user4,
-          user5,
-          user6,
-        })
-      }
-    }
+    it('runs them correctly', () => {
+      itRunsPoolRoundsCorrectly({ pool, token, user1, user2, user3, user4 })
+    })
   })
+}
+
+const runMediumTest = ({ owner, user1, user2, user3, user4, user5, user6 }) => {
+  it('sets poolDefinition', async () => {
+    const { pool } = await deployJuriStakingPool({ addresses: [owner] })
+    itSetsPoolDefinition(pool)
+  })
+
+  itRunsTestsCorrectlyWithUsers({
+    addresses: [owner, user1, user2, user3],
+    addressesToAdd: [user4, user5, user6],
+  })
+}
+
+const runFullTest = ({ accounts, owner, user1, user2, user3, user4 }) => {
+  itRunsTestsCorrectlyWithUsers({
+    addresses: [owner, user1],
+    addressesToAdd: [user2, user3, user4],
+  })
+
+  itRunsTestsCorrectlyWithUsers({
+    addresses: accounts.slice(0, accounts.length - 3),
+    addressesToAdd: accounts.slice(accounts.length - 3),
+  })
+}
+
+contract('JuriStakingPool', accounts => {
+  const [owner, user1, user2, user3, user4, user5, user6] = accounts
+
+  beforeEach(() => setDefaultJuriAddress(owner))
+
+  switch (process.env.TESTING_MODE) {
+    case 'QUICK_TESTING':
+      runQuickTest({ owner, user1, user2, user3, user4 })
+      break
+
+    case 'FULL_TESTING':
+      runFullTest({ accounts, owner, user1, user2, user3, user4 })
+      break
+
+    default:
+      runMediumTest({ owner, user1, user2, user3, user4, user5, user6 })
+      break
+  }
 })

@@ -1,4 +1,4 @@
-pragma solidity ^0.5.7;
+pragma solidity ^0.5.8;
 
 import "./IERC20.sol";
 import "./SafeMath.sol";
@@ -46,7 +46,11 @@ contract ERC20 is IERC20 {
      * @param spender address The address which will spend the funds.
      * @return A uint256 specifying the amount of tokens still available for the spender.
      */
-    function allowance(address owner, address spender) public view returns (uint256) {
+    function allowance(address owner, address spender)
+        public
+        view
+        returns (uint256)
+    {
         return _allowed[owner][spender];
     }
 
@@ -82,7 +86,10 @@ contract ERC20 is IERC20 {
      * @param to address The address which you want to transfer to
      * @param value uint256 the amount of tokens to be transferred
      */
-    function transferFrom(address from, address to, uint256 value) public returns (bool) {
+    function transferFrom(address from, address to, uint256 value)
+        public
+        returns (bool)
+    {
         require(
             _allowed[from][msg.sender] >= value,
             'Cannot transfer more than approved!'
@@ -103,8 +110,15 @@ contract ERC20 is IERC20 {
      * @param spender The address which will spend the funds.
      * @param addedValue The amount of tokens to increase the allowance by.
      */
-    function increaseAllowance(address spender, uint256 addedValue) public returns (bool) {
-        _approve(msg.sender, spender, _allowed[msg.sender][spender].add(addedValue));
+    function increaseAllowance(address spender, uint256 addedValue)
+        public
+        returns (bool)
+    {
+        _approve(
+            msg.sender,
+            spender,
+            _allowed[msg.sender][spender].add(addedValue)
+        );
         return true;
     }
 
@@ -118,8 +132,15 @@ contract ERC20 is IERC20 {
      * @param spender The address which will spend the funds.
      * @param subtractedValue The amount of tokens to decrease the allowance by.
      */
-    function decreaseAllowance(address spender, uint256 subtractedValue) public returns (bool) {
-        _approve(msg.sender, spender, _allowed[msg.sender][spender].sub(subtractedValue));
+    function decreaseAllowance(address spender, uint256 subtractedValue)
+        public
+        returns (bool)
+    {
+        _approve(
+            msg.sender,
+            spender,
+            _allowed[msg.sender][spender].sub(subtractedValue)
+        );
         return true;
     }
 
@@ -131,7 +152,10 @@ contract ERC20 is IERC20 {
      */
     function _transfer(address from, address to, uint256 value) internal {
         require(to != address(0), 'Cannot transfer to 0 address!');
-        require(_balances[from] >= value, 'Cannot transfer more than available!');
+        require(
+            _balances[from] >= value,
+            'Cannot transfer more than available!'
+        );
 
         _balances[from] = _balances[from].sub(value);
         _balances[to] = _balances[to].add(value);

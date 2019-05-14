@@ -20,7 +20,7 @@ const {
 const { computeNewCompliantStake } = require('./computationHelpers')
 
 const itRunsFirstUpdateCorrectly = async addresses => {
-  describe('when running first update', async () => {
+  describe('when running the first update', async () => {
     let complianceData, juriStakingPool, pool, poolUsers, poolStakes, token
 
     beforeEach(async () => {

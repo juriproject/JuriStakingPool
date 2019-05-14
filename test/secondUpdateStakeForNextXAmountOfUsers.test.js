@@ -31,7 +31,7 @@ const {
 } = require('./computationHelpers')
 
 const itRunsSecondUpdateCorrectly = async addresses => {
-  describe('when running second update', async () => {
+  describe.only('when running second the update', async () => {
     let complianceData,
       compliantThreshold,
       pool,
@@ -52,7 +52,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
       complianceData = new Array(poolUsers.length)
         .fill(false)
         .fill(true, poolUsers.length / 2)
-      compliantThreshold = poolUsers.length / 2 - 1
+      compliantThreshold = Math.round((poolUsers.length + 1) / 2) - 1
 
       await initialPoolSetup({
         pool,
@@ -253,8 +253,6 @@ const itRunsSecondUpdateCorrectly = async addresses => {
             totalUserStake,
           })
 
-          console.log({ expectedJuriFees: expectedJuriFees.toString() })
-
           expect(balanceAfter).to.be.bignumber.equal(
             balanceBefore.add(expectedJuriFees)
           )
@@ -314,8 +312,6 @@ const itRunsSecondUpdateCorrectly = async addresses => {
               feePercentage,
               totalUserStake,
             })
-
-            console.log({ expectedJuriFees: expectedJuriFees.toString() })
 
             expect(balanceAfter).to.be.bignumber.equal(
               balanceBefore.add(expectedJuriFees)

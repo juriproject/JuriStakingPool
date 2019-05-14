@@ -57,7 +57,7 @@ const computeTotalPayout = ({
 
   return poolStakes.reduce(
     (totalPayout, userStake, i) =>
-      i > compliantThreshold
+      i >= compliantThreshold
         ? totalPayout.add(
             computeNewCompliantStake({
               compliantGainPercentage,

@@ -808,7 +808,7 @@ contract JuriStakingPool is Ownable {
     function _computeUseMaxNonCompliancy() private view returns (bool) {
         if (currentStakingRound.totalStakeToSlash == 0) {
             // avoid division by 0
-            return false;
+            return true;
         }
 
         uint256 nonCompliantFactor = currentStakingRound.totalPayout
