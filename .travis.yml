@@ -3,10 +3,12 @@ language: node_js
 sudo: required
 
 node_js:
-  - "8.11.3"
+  - "9.11.2"
 
 env:
   - CXX=g++-4.8
+  - TEST_SUITE=FULL_TESTING
+  - TEST_SUITE=MEDIUM_TESTING
 
 addons:
   apt:
@@ -25,4 +27,4 @@ install:
   - npm install 
 
 script:
-  - npm run test
+  - TESTING_MODE=$TEST_SUITE npm run test

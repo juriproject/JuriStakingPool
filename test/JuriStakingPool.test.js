@@ -1,18 +1,6 @@
-const { expect } = require('chai')
-const { time } = require('openzeppelin-test-helpers')
+const { setDefaultJuriAddress } = require('./defaults')
 
-const {
-  defaultPeriodLength,
-  defaultFeePercentage,
-  defaultCompliantGainPercentage,
-  defaultMaxNonCompliantPenaltyPercentage,
-  defaultMinStakePerUser,
-  defaultMaxStakePerUser,
-  defaultMaxTotalStake,
-  setDefaultJuriAddress,
-} = require('./defaults')
-
-const { deployJuriStakingPool } = require('./helpers')
+const { deployJuriStakingPool, itSetsPoolDefinition } = require('./helpers')
 
 const itRunsPoolRoundsCorrectly = require('./shortTest.test')
 const itRunsCorrectlyWithFewUsers = require('./middleTest.test')
@@ -23,7 +11,6 @@ const {
 
 contract('JuriStakingPool', accounts => {
   let juriStakingPool
-
   const [owner, user1, user2, user3, user4, user5, user6] = accounts
 
   beforeEach(() => setDefaultJuriAddress(owner))
@@ -38,7 +25,7 @@ contract('JuriStakingPool', accounts => {
       token = deployedContracts.token
     })
 
-    if (process.env.QUICK_TESTING === 'true') {
+    if (process.env.TESTING_MODE === 'QUICK_TESTING') {
       describe('when running pool rounds', async () => {
         it('runs them correctly', async () => {
           itRunsPoolRoundsCorrectly({
@@ -53,38 +40,9 @@ contract('JuriStakingPool', accounts => {
       })
     } else {
       it('sets poolDefinition', async () => {
-        const poolDefinition = await juriStakingPool.poolDefinition()
-        const {
-          compliantGainPercentage,
-          feePercentage,
-          maxNonCompliantPenaltyPercentage,
-          maxStakePerUser,
-          minStakePerUser,
-          maxTotalStake,
-          periodLength,
-          startTime,
-        } = poolDefinition
-
-        expect(periodLength).to.be.bignumber.equal(defaultPeriodLength)
-        expect(feePercentage).to.be.bignumber.equal(defaultFeePercentage)
-        expect(compliantGainPercentage).to.be.bignumber.equal(
-          defaultCompliantGainPercentage
-        )
-        expect(maxNonCompliantPenaltyPercentage).to.be.bignumber.equal(
-          defaultMaxNonCompliantPenaltyPercentage
-        )
-        expect(minStakePerUser).to.be.bignumber.equal(defaultMinStakePerUser)
-        expect(maxStakePerUser).to.be.bignumber.equal(defaultMaxStakePerUser)
-        expect(maxTotalStake).to.be.bignumber.equal(defaultMaxTotalStake)
-
-        const expectedEarliestTime = await time.latest()
-        const expectedLatestTime = (await time.latest()).add(
-          time.duration.seconds(40)
-        )
-        expect(startTime).to.be.bignumber.gt(expectedEarliestTime)
-        expect(startTime).to.be.bignumber.lt(expectedLatestTime)
+        itSetsPoolDefinition(juriStakingPool)
       })
-      if (process.env.FULL_TESTING === 'true') {
+      if (process.env.TESTING_MODE === 'FULL_TESTING') {
         itRunsCorrectlyWithOneUser({
           addresses: [owner, user1],
           addressesToAdd: [user2, user3, user4],

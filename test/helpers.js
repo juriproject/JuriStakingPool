@@ -24,6 +24,39 @@ const asyncForEach = async ({ array, callback }) => {
   }
 }
 
+const itSetsPoolDefinition = async pool => {
+  const poolDefinition = await pool.poolDefinition()
+  const {
+    compliantGainPercentage,
+    feePercentage,
+    maxNonCompliantPenaltyPercentage,
+    maxStakePerUser,
+    minStakePerUser,
+    maxTotalStake,
+    periodLength,
+    startTime,
+  } = poolDefinition
+
+  expect(periodLength).to.be.bignumber.equal(defaultPeriodLength)
+  expect(feePercentage).to.be.bignumber.equal(defaultFeePercentage)
+  expect(compliantGainPercentage).to.be.bignumber.equal(
+    defaultCompliantGainPercentage
+  )
+  expect(maxNonCompliantPenaltyPercentage).to.be.bignumber.equal(
+    defaultMaxNonCompliantPenaltyPercentage
+  )
+  expect(minStakePerUser).to.be.bignumber.equal(defaultMinStakePerUser)
+  expect(maxStakePerUser).to.be.bignumber.equal(defaultMaxStakePerUser)
+  expect(maxTotalStake).to.be.bignumber.equal(defaultMaxTotalStake)
+
+  const expectedEarliestTime = await time.latest()
+  const expectedLatestTime = (await time.latest()).add(
+    time.duration.seconds(40)
+  )
+  expect(startTime).to.be.bignumber.gt(expectedEarliestTime)
+  expect(startTime).to.be.bignumber.lt(expectedLatestTime)
+}
+
 const logger = (msg, { logLevel = 2 } = {}) => {
   if (process.env.LOG_LEVEL === '2' && logLevel <= 2) console.log(msg)
   if (process.env.LOG_LEVEL === '1' && logLevel <= 1) console.log(msg)
@@ -324,6 +357,7 @@ module.exports = {
   deployJuriStakingPool,
   expectUserCountToBe,
   initialPoolSetup,
+  itSetsPoolDefinition,
   logComplianceDataForFirstPeriods,
   logFirstUsers,
   logger,

@@ -30,33 +30,23 @@ const itRunsCorrectlyWithOneUser = async ({ addresses, addressesToAdd }) => {
 
 const itRunsCorrectlyWithManyUsers = async ({ addresses, addressesToAdd }) => {
   describe('when adding new users', async () => {
-    describe('when there are many users', async () => {
-      itAddsNewUsersCorrectly({ addresses, addressesToAdd })
-    })
+    itAddsNewUsersCorrectly({ addresses, addressesToAdd })
   })
 
   describe('when removing users', async () => {
-    describe('when there are many users', async () => {
-      itRemovesNewUsersCorrectly(addresses)
-    })
+    itRemovesNewUsersCorrectly(addresses)
   })
 
   describe('when adding compliance data', async () => {
-    describe('when there are many users', async () => {
-      itAddsComplianceDataCorrectly(addresses)
-    })
+    itAddsComplianceDataCorrectly(addresses)
   })
 
   describe('when running the first update', async () => {
-    describe('when there are many users', async () => {
-      itRunsFirstUpdateCorrectly(addresses)
-    })
+    itRunsFirstUpdateCorrectly(addresses)
   })
 
   describe('when running the second update', async () => {
-    describe('when there are many users', async () => {
-      itRunsSecondUpdateCorrectly(addresses)
-    })
+    itRunsSecondUpdateCorrectly(addresses)
   })
 }
 

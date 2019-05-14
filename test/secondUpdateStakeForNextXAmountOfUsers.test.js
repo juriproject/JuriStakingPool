@@ -347,8 +347,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
         describe('when not using the max non compliancy', async () => {
           beforeEach(async () => {
             await pool.secondUpdateStakeForNextXAmountOfUsers(
-              poolUsers.length - 1,
-              []
+              poolUsers.length - 1
             )
             await time.increase(defaultPeriodLength)
 
@@ -400,8 +399,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
         describe('when contract is not sufficiently funded for next round', async () => {
           beforeEach(async () => {
             await pool.secondUpdateStakeForNextXAmountOfUsers(
-              poolUsers.length - 1,
-              []
+              poolUsers.length - 1
             )
             await time.increase(defaultPeriodLength)
 
@@ -681,8 +679,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
 
           it('adds updateIterationCount to updateStaking2Index', async () => {
             await pool.secondUpdateStakeForNextXAmountOfUsers(
-              updateIterationCount,
-              []
+              updateIterationCount
             )
             const { updateStaking2Index } = await pool.currentStakingRound()
 
