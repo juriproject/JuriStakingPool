@@ -59,8 +59,7 @@ const itRemovesNewUsersCorrectly = async addresses => {
 
     describe('when called in incorrect stage', async () => {
       beforeEach(async () => {
-        const latestTime = await time.latest()
-        await time.increaseTo(latestTime.add(defaultPeriodLength))
+        await time.increase(defaultPeriodLength)
         await pool.addWasCompliantDataForUsers(
           defaultUpdateIterationCount,
           complianceData
@@ -123,8 +122,7 @@ const itRemovesNewUsersCorrectly = async addresses => {
           await pool.removeUserInNextPeriod({ from: poolUsers[i] })
         }
 
-        const latestTime = await time.latest()
-        await time.increaseTo(latestTime.add(defaultPeriodLength))
+        await time.increase(defaultPeriodLength)
 
         await runFullCompleteRound({
           complianceData,
@@ -147,8 +145,7 @@ const itRemovesNewUsersCorrectly = async addresses => {
           expectedUserCount: poolUsers.length,
         })
 
-        const latestTime = await time.latest()
-        await time.increaseTo(latestTime.add(defaultPeriodLength))
+        await time.increase(defaultPeriodLength)
 
         await runFullCompleteRound({
           complianceData,

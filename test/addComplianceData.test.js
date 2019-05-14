@@ -46,8 +46,7 @@ const itAddsComplianceDataCorrectly = async addresses => {
 
     describe('when the current period is finished', async () => {
       beforeEach(async () => {
-        const latestTime = await time.latest()
-        time.increaseTo(latestTime.add(defaultPeriodLength))
+        await time.increase(defaultPeriodLength)
       })
 
       describe('when called by juriAddress', async () => {

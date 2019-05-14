@@ -343,13 +343,13 @@ const itRunsSecondUpdateCorrectly = async addresses => {
         describe('when not using the max non compliancy', async () => {
           beforeEach(async () => {
             await pool.secondUpdateStakeForNextXAmountOfUsers(
-              poolUsers.length - 1
+              defaultUpdateIterationCount
             )
             await time.increase(defaultPeriodLength)
 
             complianceData = new Array(poolUsers.length)
               .fill(false)
-              .fill(true, poolUsers.length / 1.3333333333)
+              .fill(true, Math.round(poolUsers.length / 1.3333333333))
 
             compliantThreshold = poolUsers.length / 1.3333333333 - 1
 
@@ -363,18 +363,16 @@ const itRunsSecondUpdateCorrectly = async addresses => {
               poolUsers,
               updateIterationCount: defaultUpdateIterationCount,
             })
-
-            if (poolUsers.length > 1) {
-              await pool.secondUpdateStakeForNextXAmountOfUsers(
-                poolUsers.length - 1
-              )
-            }
           })
 
           it('does not underwrite', async () => {
             const ownerFundsBefore = await pool.ownerFunds()
 
-            await pool.secondUpdateStakeForNextXAmountOfUsers(new BN(1))
+            console.log({ complianceData, compliantThreshold })
+
+            await pool.secondUpdateStakeForNextXAmountOfUsers(
+              defaultUpdateIterationCount
+            )
 
             const ownerFundsAfter = await pool.ownerFunds()
 
