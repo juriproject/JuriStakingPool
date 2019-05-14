@@ -170,14 +170,10 @@ const itRunsFirstUpdateCorrectly = async addresses => {
 
             for (let i = 0; i < poolUsers.length; i++) {
               currentStakesBefore.push(
-                await pool.getStakeForUserInCurrentPeriod({
-                  from: poolUsers[i],
-                })
+                await pool.getStakeForUserInCurrentPeriod(poolUsers[i])
               )
               nextStakesBefore.push(
-                await pool.getAdditionalStakeForUserInNextPeriod({
-                  from: poolUsers[i],
-                })
+                await pool.getAdditionalStakeForUserInNextPeriod(poolUsers[i])
               )
             }
 
@@ -189,10 +185,10 @@ const itRunsFirstUpdateCorrectly = async addresses => {
 
             for (let i = 0; i < poolUsers.length; i++) {
               const currentStakeAfter = await pool.getStakeForUserInCurrentPeriod(
-                { from: poolUsers[i] }
+                poolUsers[i]
               )
               const nextStakeAfter = await pool.getAdditionalStakeForUserInNextPeriod(
-                { from: poolUsers[i] }
+                poolUsers[i]
               )
 
               expect(currentStakeAfter).to.be.bignumber.equal(
@@ -228,12 +224,12 @@ const itRunsFirstUpdateCorrectly = async addresses => {
 
           it('moves the user stakes', async () => {
             const currentStakeBefore = await pool.getStakeForUserInCurrentPeriod(
-              { from: poolUsers[0] }
+              poolUsers[0]
             )
             await runFullFirstUpdate({ pool, poolUsers, updateIterationCount })
 
             const currentStakeAfter = await pool.getStakeForUserInCurrentPeriod(
-              { from: poolUsers[0] }
+              poolUsers[0]
             )
 
             expect(currentStakeAfter).to.be.bignumber.above(currentStakeBefore)
@@ -244,10 +240,10 @@ const itRunsFirstUpdateCorrectly = async addresses => {
 
             for (let i = 0; i < poolUsers.length; i++) {
               const currentStakeAfter = await pool.getStakeForUserInCurrentPeriod(
-                { from: poolUsers[i] }
+                poolUsers[i]
               )
               const nextStakeAfter = await pool.getAdditionalStakeForUserInNextPeriod(
-                { from: poolUsers[i] }
+                poolUsers[i]
               )
 
               expect(nextStakeAfter).to.be.bignumber.equal(new BN(0))
@@ -291,7 +287,7 @@ const itRunsFirstUpdateCorrectly = async addresses => {
 
             for (let i = 0; i < poolUsers.length; i++) {
               const currentStakeAfter = await pool.getStakeForUserInCurrentPeriod(
-                { from: poolUsers[i] }
+                poolUsers[i]
               )
 
               expect(currentStakeAfter).to.be.bignumber.equal(
@@ -386,19 +382,19 @@ const itRunsFirstUpdateCorrectly = async addresses => {
 
           it('does not update or move the user stakes', async () => {
             const currentStakeBefore = await pool.getStakeForUserInCurrentPeriod(
-              { from: poolUsers[0] }
+              poolUsers[0]
             )
             const nextStakeBefore = await pool.getAdditionalStakeForUserInNextPeriod(
-              { from: poolUsers[0] }
+              poolUsers[0]
             )
 
             await runFullFirstUpdate({ pool, poolUsers, updateIterationCount })
 
             const currentStakeAfter = await pool.getStakeForUserInCurrentPeriod(
-              { from: poolUsers[0] }
+              poolUsers[0]
             )
             const nextStakeAfter = await pool.getAdditionalStakeForUserInNextPeriod(
-              { from: poolUsers[0] }
+              poolUsers[0]
             )
 
             expect(currentStakeAfter).to.be.bignumber.equal(
@@ -463,7 +459,7 @@ const itRunsFirstUpdateCorrectly = async addresses => {
 
           for (let i = 0; i < poolUsers.length; i++) {
             const currentStakeAfter = await pool.getStakeForUserInCurrentPeriod(
-              { from: poolUsers[i] }
+              poolUsers[i]
             )
 
             expect(currentStakeAfter).to.be.bignumber.equal(
@@ -514,7 +510,7 @@ const itRunsFirstUpdateCorrectly = async addresses => {
 
           for (let i = 0; i < poolUsers.length; i++) {
             const currentStakeAfter = await pool.getStakeForUserInCurrentPeriod(
-              { from: poolUsers[i] }
+              poolUsers[i]
             )
 
             expect(currentStakeAfter).to.be.bignumber.equal(

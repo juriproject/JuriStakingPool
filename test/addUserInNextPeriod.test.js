@@ -69,6 +69,8 @@ const itAddsNewUsersCorrectly = async ({ addresses, addressesToAdd }) => {
 
     describe('when called in incorrect stage', async () => {
       beforeEach(async () => {
+        const latestTime = await time.latest()
+        await time.increaseTo(latestTime.add(defaultPeriodLength))
         await pool.addWasCompliantDataForUsers(
           defaultUpdateIterationCount,
           complianceData

@@ -293,8 +293,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
 
             if (poolUsers.length > 1) {
               await pool.secondUpdateStakeForNextXAmountOfUsers(
-                poolUsers.length - 1,
-                []
+                poolUsers.length - 1
               )
             }
           })
@@ -372,8 +371,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
 
             if (poolUsers.length > 1) {
               await pool.secondUpdateStakeForNextXAmountOfUsers(
-                poolUsers.length - 1,
-                []
+                poolUsers.length - 1
               )
             }
           })
@@ -422,8 +420,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
 
             if (poolUsers.length > 1) {
               await pool.secondUpdateStakeForNextXAmountOfUsers(
-                poolUsers.length - 1,
-                []
+                poolUsers.length - 1
               )
             }
           })
@@ -465,11 +462,6 @@ const itRunsSecondUpdateCorrectly = async addresses => {
 
             await shouldFail.reverting.withMessage(
               pool.getUserToBeAddedNextPeriod(0),
-              'invalid opcode'
-            )
-
-            await shouldFail.reverting.withMessage(
-              pool.getUserToBeRemovedNextPeriod(0),
               'invalid opcode'
             )
           })
@@ -547,14 +539,10 @@ const itRunsSecondUpdateCorrectly = async addresses => {
 
             for (let i = 0; i < poolUsers.length; i++) {
               currentStakesBefore.push(
-                await pool.getStakeForUserInCurrentPeriod({
-                  from: poolUsers[i],
-                })
+                await pool.getStakeForUserInCurrentPeriod(poolUsers[i])
               )
               nextStakesBefore.push(
-                await pool.getAdditionalStakeForUserInNextPeriod({
-                  from: poolUsers[i],
-                })
+                await pool.getAdditionalStakeForUserInNextPeriod(poolUsers[i])
               )
             }
 
@@ -566,10 +554,10 @@ const itRunsSecondUpdateCorrectly = async addresses => {
 
             for (let i = 0; i < poolUsers.length; i++) {
               const currentStakeAfter = await pool.getStakeForUserInCurrentPeriod(
-                { from: poolUsers[i] }
+                poolUsers[i]
               )
               const nextStakeAfter = await pool.getAdditionalStakeForUserInNextPeriod(
-                { from: poolUsers[i] }
+                poolUsers[i]
               )
 
               expect(currentStakeAfter).to.be.bignumber.equal(
@@ -617,12 +605,12 @@ const itRunsSecondUpdateCorrectly = async addresses => {
 
           it('moves its users stake', async () => {
             const currentStakeBefore = await pool.getStakeForUserInCurrentPeriod(
-              { from: poolUsers[0] }
+              poolUsers[0]
             )
             await runFullSecondUpdate({ pool, poolUsers, updateIterationCount })
 
             const currentStakeAfter = await pool.getStakeForUserInCurrentPeriod(
-              { from: poolUsers[0] }
+              poolUsers[0]
             )
 
             expect(currentStakeAfter).to.be.bignumber.above(currentStakeBefore)
@@ -633,10 +621,10 @@ const itRunsSecondUpdateCorrectly = async addresses => {
 
             for (let i = 0; i < poolUsers.length; i++) {
               const currentStakeAfter = await pool.getStakeForUserInCurrentPeriod(
-                { from: poolUsers[i] }
+                poolUsers[i]
               )
               const nextStakeAfter = await pool.getAdditionalStakeForUserInNextPeriod(
-                { from: poolUsers[i] }
+                poolUsers[i]
               )
 
               expect(nextStakeAfter).to.be.bignumber.equal(new BN(0))
@@ -677,7 +665,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
 
             for (let i = 0; i < poolUsers.length; i++) {
               const currentStakeAfter = await pool.getStakeForUserInCurrentPeriod(
-                { from: poolUsers[i] }
+                poolUsers[i]
               )
 
               expect(currentStakeAfter).to.be.bignumber.equal(
@@ -717,8 +705,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
               )
 
               await pool.secondUpdateStakeForNextXAmountOfUsers(
-                updateIterationCount,
-                []
+                updateIterationCount
               )
             }
 
@@ -816,7 +803,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
 
           for (let i = 0; i < poolUsers.length / 2 - 1; i++) {
             const currentStakeAfter = await pool.getStakeForUserInCurrentPeriod(
-              { from: poolUsers[i] }
+              poolUsers[i]
             )
 
             expect(currentStakeAfter).to.be.bignumber.equal(
@@ -889,7 +876,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
 
           for (let i = 0; i < poolUsers.length / 2 - 1; i++) {
             const currentStakeAfter = await pool.getStakeForUserInCurrentPeriod(
-              { from: poolUsers[i] }
+              poolUsers[i]
             )
 
             expect(currentStakeAfter).to.be.bignumber.equal(

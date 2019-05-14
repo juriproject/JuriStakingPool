@@ -84,15 +84,6 @@ const logPoolState = async (pool, { logLevel = 2 } = {}) => {
     // ignore (usersToAddNextPeriod array is empty)
   }
 
-  try {
-    const firstUserToRemove = (await pool.getUserToBeRemovedNextPeriod(
-      0
-    )).toString()
-    logger({ firstUserToRemove }, { logLevel })
-  } catch (error) {
-    // ignore (usersToRemoveNextPeriod array is empty)
-  }
-
   logCurrentRound(currentStakingRound, { logLevel })
   logger({ totalUserStake }, { logLevel: 1 }, { logLevel })
 
@@ -106,18 +97,50 @@ const logPoolState = async (pool, { logLevel = 2 } = {}) => {
   )
 }
 
-const logIsStaking = async ({ pool, users }) => {
-  const userIsStakingList = await Promise.all(
-    users.map(user => pool.userIsStaking(user).then(r => r.toString()))
+const runPoolRound = async ({ complianceData, pool, poolUsers }) => {
+  await time.increase(defaultPeriodLength)
+  const receipt0 = await pool.addWasCompliantDataForUsers(
+    defaultUpdateIterationCount,
+    complianceData
   )
 
-  const userIsStakingNextPeriodList = await Promise.all(
-    users.map(user =>
-      pool.userIsStakingNextPeriod(user).then(r => r.toString())
-    )
-  )
+  await logFirstUsers({ pool, userCount: poolUsers.length })
 
-  logger({ userIsStakingList, userIsStakingNextPeriodList })
+  await logComplianceDataForFirstPeriods({
+    pool,
+    users: poolUsers,
+  })
+
+  const gasUsedComplianceData = receipt0.receipt.gasUsed
+  const receipt1 = await pool.firstUpdateStakeForNextXAmountOfUsers(
+    defaultUpdateIterationCount
+  )
+  const gasUsedFirstUpdate = receipt1.receipt.gasUsed
+
+  logger('************ State in middle of round ************', {
+    logLevel: 1,
+  })
+  await logPoolState(pool)
+
+  const receipt2 = await pool.secondUpdateStakeForNextXAmountOfUsers(
+    defaultUpdateIterationCount
+  )
+  const gasUsedSecondUpdate = receipt2.receipt.gasUsed
+
+  logger({
+    gasUsedComplianceData,
+    gasUsedFirstUpdate,
+    gasUsedSecondUpdate,
+  })
+
+  logger('************ State after round ************', { logLevel: 1 })
+  await logPoolState(pool)
+
+  logger('************ Balances after round ************')
+  await logUserBalancesForFirstPeriods({
+    pool,
+    users: poolUsers,
+  })
 }
 
 const logFirstUsers = async ({ pool, userCount }) => {
@@ -131,7 +154,7 @@ const logUserBalancesForFirstPeriods = async ({ pool, users }) => {
   const stakesAtCurrentRound = await Promise.all(
     users.map(user =>
       pool
-        .getStakeForUserInCurrentPeriod({ from: user })
+        .getStakeForUserInCurrentPeriod(user)
         .then(userStake => userStake.toNumber())
     )
   )
@@ -139,7 +162,7 @@ const logUserBalancesForFirstPeriods = async ({ pool, users }) => {
   const stakesAtNextRound = await Promise.all(
     users.map(user =>
       pool
-        .getAdditionalStakeForUserInNextPeriod({ from: user })
+        .getAdditionalStakeForUserInNextPeriod(user)
         .then(addedUserStake => addedUserStake.toNumber())
     )
   )
@@ -304,12 +327,12 @@ module.exports = {
   logComplianceDataForFirstPeriods,
   logFirstUsers,
   logger,
-  logIsStaking,
   logPoolState,
   logUserBalancesForFirstPeriods,
   runFullCompleteRound,
   runFullComplianceDataAddition,
   runFullFirstUpdate,
   runFullSecondUpdate,
+  runPoolRound,
   Stages,
 }
