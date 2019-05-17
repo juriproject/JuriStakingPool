@@ -7,6 +7,7 @@ const itRemovesNewUsersCorrectly = require('./removeUserInNextPeriod.test')
 const itAddsComplianceDataCorrectly = require('./addComplianceData.test')
 const itRunsFirstUpdateCorrectly = require('./firstUpdateStakeForNextXAmountOfUsers.test')
 const itRunsSecondUpdateCorrectly = require('./secondUpdateStakeForNextXAmountOfUsers.test')
+const itAddsMoreStakeCorrectly = require('./addMoreStake.test')
 
 const itRunsTestsCorrectlyWithUsers = async ({ addresses, addressesToAdd }) => {
   itAddsNewUsersCorrectly({ addresses, addressesToAdd })
@@ -14,6 +15,7 @@ const itRunsTestsCorrectlyWithUsers = async ({ addresses, addressesToAdd }) => {
   itAddsComplianceDataCorrectly(addresses)
   itRunsFirstUpdateCorrectly(addresses)
   itRunsSecondUpdateCorrectly(addresses)
+  itAddsMoreStakeCorrectly({ addresses, addressesToAdd })
 }
 
 const runQuickTest = ({ owner, user1, user2, user3, user4 }) => {

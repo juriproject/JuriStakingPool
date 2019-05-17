@@ -50,6 +50,7 @@ contract JuriStakingPool is Ownable {
         mapping (address => uint256) addedUserStakes;
         mapping (address => bool) userIsLeaving;
         address[] usersToAdd;
+        uint256 totalAddedStake;
     }
 
     IERC20 public token;
@@ -255,12 +256,8 @@ contract JuriStakingPool is Ownable {
             "Cannot add more funds for user, because the max per user is reached!"
         );
         require(
-            totalUserStake.add(stakeInNextPeriod) < poolDefinition.maxTotalStake,
+            totalUserStake.add(nextStakingRound.totalAddedStake) < poolDefinition.maxTotalStake,
             "Cannot add more funds to pool, because the max in pool is reached!"
-        );
-        require(
-            token.transferFrom(msg.sender, address(this), _amount),
-            "Token transfer failed!"
         );
 
         uint256 newStakeInNextPeriod = stakeInNextPeriod.add(_amount);
@@ -271,7 +268,7 @@ contract JuriStakingPool is Ownable {
                 > poolDefinition.maxStakePerUser
         ) {
             adjustedAddedStake = poolDefinition.maxStakePerUser.sub(
-                stakeInCurrentPeriod.add(newStakeInNextPeriod)
+                stakeInCurrentPeriod.add(stakeInNextPeriod)
             );
         }
 
@@ -279,26 +276,27 @@ contract JuriStakingPool is Ownable {
             = stakeInNextPeriod.add(adjustedAddedStake);
 
         if (
-            totalUserStake.add(adjustedNewStakeInNextPeriod)
+            totalUserStake
+                .add(nextStakingRound.totalAddedStake)
+                .add(adjustedNewStakeInNextPeriod)
                 > poolDefinition.maxTotalStake
         ) {
             adjustedAddedStake = poolDefinition.maxTotalStake.sub(
-                totalUserStake.add(adjustedNewStakeInNextPeriod)
+                totalUserStake.add(nextStakingRound.totalAddedStake)
             );
         }
 
-        if (adjustedAddedStake < _amount) {
-            uint256 refund = _amount.sub(adjustedAddedStake);
-            require(
-                token.transfer(msg.sender, refund),
-                "Token refund failed!"
-            );
-        }
+        require(
+            token.transferFrom(msg.sender, address(this), adjustedAddedStake),
+            "Token transfer failed!"
+        );
 
         uint256 newStakeBalanceInNextPeriod
             = stakeInNextPeriod.add(adjustedAddedStake);
         nextStakingRound.addedUserStakes[msg.sender]
             = newStakeBalanceInNextPeriod;
+        nextStakingRound.totalAddedStake = nextStakingRound.totalAddedStake
+            .add(adjustedAddedStake);
     }
 
     /**
@@ -889,7 +887,7 @@ contract JuriStakingPool is Ownable {
         );
 
         nextStakingRound = NextStakingRound(
-            new address[](0)
+            new address[](0), 0
         );
     }
 

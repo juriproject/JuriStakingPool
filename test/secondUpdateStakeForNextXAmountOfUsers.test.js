@@ -31,7 +31,7 @@ const {
 } = require('./computationHelpers')
 
 const itRunsSecondUpdateCorrectly = async addresses => {
-  describe.only('when running second the update', async () => {
+  describe('when running second the update', async () => {
     let complianceData,
       compliantThreshold,
       pool,
