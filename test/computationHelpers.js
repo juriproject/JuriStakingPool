@@ -3,6 +3,14 @@ const { BN } = require('openzeppelin-test-helpers')
 const computeNewCompliantStake = ({ compliantGainPercentage, userStake }) =>
   userStake.mul(new BN(100).add(compliantGainPercentage)).div(new BN(100))
 
+const computeMaxLossNewStake = ({
+  maxNonCompliantPenaltyPercentage,
+  userStake,
+}) =>
+  userStake.sub(
+    userStake.mul(maxNonCompliantPenaltyPercentage).div(new BN(100))
+  )
+
 const computeNewNonCompliantStake = ({
   maxNonCompliantPenaltyPercentage,
   totalPayout,
@@ -16,9 +24,10 @@ const computeNewNonCompliantStake = ({
   })
 
   if (useMaxNonCompliancy)
-    return userStake.sub(
-      userStake.mul(maxNonCompliantPenaltyPercentage).div(new BN(100))
-    )
+    return computeMaxLossNewStake({
+      maxNonCompliantPenaltyPercentage,
+      userStake,
+    })
 
   return userStake
     .mul(totalStakeToSlash.sub(totalPayout))
@@ -94,6 +103,7 @@ const computeUnderWriterLiability = ({
 
 module.exports = {
   computeJuriFees,
+  computeMaxLossNewStake,
   computeNewCompliantStake,
   computeNewNonCompliantStake,
   computeTotalPayout,

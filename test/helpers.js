@@ -15,6 +15,8 @@ const {
   TWO_HUNDRED_TOKEN,
 } = require('./defaults')
 
+// const { createProxyContract } = require('./gasEvaluationProxy')
+
 const ERC20Mintable = artifacts.require('./lib/ERC20Mintable.sol')
 const JuriStakingPool = artifacts.require('./JuriStakingPool.sol')
 

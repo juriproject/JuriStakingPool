@@ -45,6 +45,15 @@ const itAddsNewUsersCorrectly = async ({ addresses, addressesToAdd }) => {
       )
     })
 
+    describe('when called with amount below min stake per user', async () => {
+      it('reverts the transacion', async () => {
+        await shouldFail.reverting.withMessage(
+          pool.addUserInNextPeriod(1, { from: poolUsers[0] }),
+          'Please pass at least the min stake per user as amount!'
+        )
+      })
+    })
+
     describe('when called by an already existing pool user', async () => {
       it('reverts the transacion', async () => {
         await shouldFail.reverting.withMessage(
@@ -79,7 +88,7 @@ const itAddsNewUsersCorrectly = async ({ addresses, addressesToAdd }) => {
       it('reverts the transacion', async () => {
         await shouldFail.reverting.withMessage(
           pool.addUserInNextPeriod(stake, { from: addressesToAdd[0] }),
-          "Function can't be called at this time!"
+          'Function cannot be called at this time!'
         )
       })
     })
@@ -112,7 +121,7 @@ const itAddsNewUsersCorrectly = async ({ addresses, addressesToAdd }) => {
         }
 
         for (let i = 0; i < addressesToAdd.length; i++) {
-          const userWillBeStaking = await pool.getNextRoundStaking({
+          const userWillBeStaking = await pool.getIsNextRoundStaking({
             from: addressesToAdd[i],
           })
           expect(userWillBeStaking).to.be.true

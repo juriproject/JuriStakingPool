@@ -8,6 +8,8 @@ const itAddsComplianceDataCorrectly = require('./addComplianceData.test')
 const itRunsFirstUpdateCorrectly = require('./firstUpdateStakeForNextXAmountOfUsers.test')
 const itRunsSecondUpdateCorrectly = require('./secondUpdateStakeForNextXAmountOfUsers.test')
 const itAddsMoreStakeCorrectly = require('./addMoreStake.test')
+const itWithdrawsStakeCorrectly = require('./withdraw.test')
+const itChecksContraintsOnOptingInOutOfStaking = require('./optInOutOfStaking.test.js')
 
 const itRunsTestsCorrectlyWithUsers = async ({ addresses, addressesToAdd }) => {
   itAddsNewUsersCorrectly({ addresses, addressesToAdd })
@@ -16,6 +18,7 @@ const itRunsTestsCorrectlyWithUsers = async ({ addresses, addressesToAdd }) => {
   itRunsFirstUpdateCorrectly(addresses)
   itRunsSecondUpdateCorrectly(addresses)
   itAddsMoreStakeCorrectly({ addresses, addressesToAdd })
+  itWithdrawsStakeCorrectly(addresses)
 }
 
 const runQuickTest = ({ owner, user1, user2, user3, user4 }) => {
@@ -31,7 +34,7 @@ const runQuickTest = ({ owner, user1, user2, user3, user4 }) => {
       token = deployedContracts.token
     })
 
-    it('runs them correctly', () => {
+    it('runs them correctly', async () => {
       itRunsPoolRoundsCorrectly({ pool, token, user1, user2, user3, user4 })
     })
   })
@@ -47,6 +50,8 @@ const runMediumTest = ({ owner, user1, user2, user3, user4, user5, user6 }) => {
     addresses: [owner, user1, user2, user3],
     addressesToAdd: [user4, user5, user6],
   })
+
+  itChecksContraintsOnOptingInOutOfStaking([owner, user1, user2, user3])
 }
 
 const runFullTest = ({ accounts, owner, user1, user2, user3, user4 }) => {

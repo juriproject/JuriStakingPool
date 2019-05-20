@@ -1,15 +1,24 @@
 const { expect } = require('chai')
-const { BN, shouldFail } = require('openzeppelin-test-helpers')
+const { BN, shouldFail, time } = require('openzeppelin-test-helpers')
 
 const { deployJuriStakingPool, initialPoolSetup } = require('./helpers')
 const {
   defaultMaxStakePerUser,
+  defaultPeriodLength,
+  defaultUpdateIterationCount,
   ONE_HUNDRED_TOKEN,
   TWO_HUNDRED_TOKEN,
 } = require('./defaults')
 
 const itAddsMoreStakeCorrectly = async ({ addresses, addressesToAdd }) => {
-  let addedUserStake, pool, poolUsers, poolStakes, token
+  let addedUserStakes,
+    complianceData,
+    newUsersAddedStakes,
+    newUsersStakes,
+    pool,
+    poolUsers,
+    poolStakes,
+    token
 
   describe('when adding more stake', async () => {
     beforeEach(async () => {
@@ -22,9 +31,11 @@ const itAddsMoreStakeCorrectly = async ({ addresses, addressesToAdd }) => {
 
       poolUsers = addresses.slice(1, addresses.length) // without owner
 
-      addedUserStake = new Array(poolUsers.length).fill(new BN(5000))
+      addedUserStakes = new Array(poolUsers.length).fill(new BN(5000))
       poolStakes = new Array(poolUsers.length).fill(new BN(1000))
       complianceData = new Array(poolUsers.length).fill(true)
+      newUsersStakes = new Array(addressesToAdd.length).fill(new BN(2000))
+      newUsersAddedStakes = new Array(addressesToAdd.length).fill(new BN(3000))
 
       await initialPoolSetup({
         pool,
@@ -32,20 +43,14 @@ const itAddsMoreStakeCorrectly = async ({ addresses, addressesToAdd }) => {
         poolStakes,
         token,
       })
-
-      /* await Promise.all(
-        addressesToAdd.map(user =>
-          token.approve(pool.address, new BN(5000), { from: user })
-        )
-      ) */
     })
 
     it('adds stake to next period', async () => {
       for (let i = 0; i < poolUsers.length; i++) {
-        await token.approve(pool.address, addedUserStake[i], {
+        await token.approve(pool.address, addedUserStakes[i], {
           from: poolUsers[i],
         })
-        await pool.addMoreStakeForNextPeriod(addedUserStake[i], {
+        await pool.addMoreStakeForNextPeriod(addedUserStakes[i], {
           from: poolUsers[i],
         })
 
@@ -57,8 +62,174 @@ const itAddsMoreStakeCorrectly = async ({ addresses, addressesToAdd }) => {
         )
 
         expect(stakeAtCurrentPeriod).to.be.bignumber.equal(poolStakes[i])
-        expect(stakeAtNextPeriod).to.be.bignumber.equal(addedUserStake[i])
+        expect(stakeAtNextPeriod).to.be.bignumber.equal(addedUserStakes[i])
       }
+    })
+
+    it('adds stake to total added stake in next round', async () => {
+      let totalAddedStakeBefore = await pool.nextStakingRound()
+
+      for (let i = 0; i < poolUsers.length; i++) {
+        await token.approve(pool.address, addedUserStakes[i], {
+          from: poolUsers[i],
+        })
+        await pool.addMoreStakeForNextPeriod(addedUserStakes[i], {
+          from: poolUsers[i],
+        })
+
+        const totalAddedStake = await pool.nextStakingRound()
+
+        expect(totalAddedStake).to.be.bignumber.equal(
+          totalAddedStakeBefore.add(addedUserStakes[i])
+        )
+
+        totalAddedStakeBefore = totalAddedStake
+      }
+    })
+
+    describe('when passing an amount of 0', async () => {
+      it('reverts the transaction', async () => {
+        await shouldFail.reverting.withMessage(
+          pool.addMoreStakeForNextPeriod(0, {
+            from: poolUsers[0],
+          }),
+          'Please pass an amount higher than 0!'
+        )
+      })
+    })
+
+    describe('when called by a non-existant pool user', async () => {
+      it('reverts the transacion', async () => {
+        await shouldFail.reverting.withMessage(
+          pool.addMoreStakeForNextPeriod(newUsersStakes[0], {
+            from: addressesToAdd[0],
+          }),
+          'Only pool users or pending pool users can use this function!'
+        )
+      })
+    })
+
+    describe('when called without approving tokens before', async () => {
+      it('reverts the transacion', async () => {
+        await shouldFail.reverting.withMessage(
+          pool.addMoreStakeForNextPeriod(addedUserStakes[0], {
+            from: poolUsers[0],
+          }),
+          'Cannot transfer more than approved!'
+        )
+      })
+    })
+
+    describe('when called in incorrect stage', async () => {
+      beforeEach(async () => {
+        await time.increase(defaultPeriodLength)
+        await pool.addWasCompliantDataForUsers(
+          defaultUpdateIterationCount,
+          complianceData
+        )
+      })
+
+      it('reverts the transacion', async () => {
+        await shouldFail.reverting.withMessage(
+          pool.addUserInNextPeriod(addedUserStakes[0], {
+            from: addressesToAdd[0],
+          }),
+          'Function cannot be called at this time!'
+        )
+      })
+    })
+
+    describe('when called with different amounts', async () => {
+      let amount
+
+      describe('when called with small amount', async () => {
+        beforeEach(async () => {
+          amount = new BN(1)
+        })
+
+        it('adds new stake correctly', async () => {
+          await token.approve(pool.address, amount, {
+            from: poolUsers[0],
+          })
+          await pool.addMoreStakeForNextPeriod(amount, {
+            from: poolUsers[0],
+          })
+
+          const stakeAtCurrentPeriod = await pool.getStakeForUserInCurrentPeriod(
+            poolUsers[0]
+          )
+          const stakeAtNextPeriod = await pool.getAdditionalStakeForUserInNextPeriod(
+            poolUsers[0]
+          )
+
+          expect(stakeAtCurrentPeriod).to.be.bignumber.equal(poolStakes[0])
+          expect(stakeAtNextPeriod).to.be.bignumber.equal(amount)
+        })
+      })
+
+      describe('when called with high amount', async () => {
+        beforeEach(async () => {
+          amount = ONE_HUNDRED_TOKEN.sub(new BN(1000))
+        })
+
+        it('adds new stake correctly', async () => {
+          await token.approve(pool.address, amount, {
+            from: poolUsers[0],
+          })
+          await pool.addMoreStakeForNextPeriod(amount, {
+            from: poolUsers[0],
+          })
+
+          const stakeAtCurrentPeriod = await pool.getStakeForUserInCurrentPeriod(
+            poolUsers[0]
+          )
+          const stakeAtNextPeriod = await pool.getAdditionalStakeForUserInNextPeriod(
+            poolUsers[0]
+          )
+
+          expect(stakeAtCurrentPeriod).to.be.bignumber.equal(poolStakes[0])
+          expect(stakeAtNextPeriod).to.be.bignumber.equal(amount)
+        })
+      })
+    })
+
+    describe('when there are pending users', async () => {
+      beforeEach(async () => {
+        await Promise.all(
+          addressesToAdd.map((user, i) =>
+            token.approve(pool.address, newUsersStakes[i], { from: user })
+          )
+        )
+
+        for (let i = 0; i < addressesToAdd.length; i++) {
+          await pool.addUserInNextPeriod(newUsersStakes[i], {
+            from: addressesToAdd[i],
+          })
+        }
+      })
+
+      it('adds new stake to pending stake', async () => {
+        for (let i = 0; i < addressesToAdd.length; i++) {
+          await token.approve(pool.address, newUsersAddedStakes[i], {
+            from: addressesToAdd[i],
+          })
+          await pool.addMoreStakeForNextPeriod(newUsersAddedStakes[i], {
+            from: addressesToAdd[i],
+          })
+
+          const stakeAtCurrentPeriod = await pool.getStakeForUserInCurrentPeriod(
+            addressesToAdd[i]
+          )
+          const stakeAtNextPeriod = await pool.getAdditionalStakeForUserInNextPeriod(
+            addressesToAdd[i]
+          )
+
+          expect(stakeAtCurrentPeriod).to.be.bignumber.equal(new BN(0))
+          expect(stakeAtNextPeriod).to.be.bignumber.equal(
+            newUsersStakes[i].add(newUsersAddedStakes[i])
+          )
+        }
+      })
     })
 
     it('adds up to max stake per user', async () => {
@@ -82,7 +253,7 @@ const itAddsMoreStakeCorrectly = async ({ addresses, addressesToAdd }) => {
       )
     })
 
-    it.only('adds up to max of pool', async () => {
+    it('adds up to max of pool', async () => {
       const totalCurrentStake = poolStakes.reduce(
         (sum, stake) => sum.add(stake),
         new BN(0)

@@ -91,7 +91,7 @@ const itRunsFirstUpdateCorrectly = async addresses => {
           pool.firstUpdateStakeForNextXAmountOfUsers(
             defaultUpdateIterationCount
           ),
-          "Function can't be called at this time!"
+          'Function cannot be called at this time!'
         )
       })
     })
@@ -111,7 +111,7 @@ const itRunsFirstUpdateCorrectly = async addresses => {
           pool.firstUpdateStakeForNextXAmountOfUsers(
             defaultUpdateIterationCount
           ),
-          "Function can't be called at this time!"
+          'Function cannot be called at this time!'
         )
       })
     })
@@ -147,6 +147,15 @@ const itRunsFirstUpdateCorrectly = async addresses => {
             complianceData = new Array(poolUsers.length)
               .fill(false)
               .fill(true, poolUsers.length / 2)
+          })
+
+          it('does not update or move the user stakes', async () => {
+            for (let i = 0; i < poolUsers.length; i++) {
+              const userIsStakingBefore = await pool.getIsCurrentRoundStaking({
+                from: poolUsers[i],
+              })
+              expect(userIsStakingBefore).to.be.true
+            }
 
             await runFullCompleteRound({
               complianceData,
@@ -162,9 +171,7 @@ const itRunsFirstUpdateCorrectly = async addresses => {
               poolUsers,
               updateIterationCount,
             })
-          })
 
-          it('does not update or move the user stakes', async () => {
             const currentStakesBefore = []
             const nextStakesBefore = []
 
@@ -175,6 +182,11 @@ const itRunsFirstUpdateCorrectly = async addresses => {
               nextStakesBefore.push(
                 await pool.getAdditionalStakeForUserInNextPeriod(poolUsers[i])
               )
+
+              const userIsStakingAfter = await pool.getIsCurrentRoundStaking({
+                from: poolUsers[i],
+              })
+              expect(userIsStakingAfter).to.be.false
             }
 
             await runFullFirstUpdate({

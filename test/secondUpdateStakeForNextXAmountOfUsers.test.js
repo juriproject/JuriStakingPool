@@ -126,7 +126,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
           pool.secondUpdateStakeForNextXAmountOfUsers(
             defaultUpdateIterationCount
           ),
-          "Function can't be called at this time!"
+          'Function cannot be called at this time!'
         )
       })
     })
@@ -150,7 +150,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
           pool.secondUpdateStakeForNextXAmountOfUsers(
             defaultUpdateIterationCount
           ),
-          "Function can't be called at this time!"
+          'Function cannot be called at this time!'
         )
       })
     })
@@ -367,8 +367,6 @@ const itRunsSecondUpdateCorrectly = async addresses => {
 
           it('does not underwrite', async () => {
             const ownerFundsBefore = await pool.ownerFunds()
-
-            console.log({ complianceData, compliantThreshold })
 
             await pool.secondUpdateStakeForNextXAmountOfUsers(
               defaultUpdateIterationCount

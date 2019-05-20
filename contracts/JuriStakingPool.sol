@@ -29,6 +29,7 @@ contract JuriStakingPool is Ownable {
     struct CurrentStakingRound {
         mapping (address => bool) userIsStaking;
         mapping (address => uint256) userStakes;
+        mapping (address => uint256) userStakesAtRoundStart;
 
         uint256 roundIndex;
         Stages stage;
@@ -59,7 +60,7 @@ contract JuriStakingPool is Ownable {
 
     // Pool state
     CurrentStakingRound public currentStakingRound;
-    NextStakingRound nextStakingRound;
+    NextStakingRound public nextStakingRound;
 
     address[] public users;
     uint256 public ownerFunds;
@@ -71,19 +72,19 @@ contract JuriStakingPool is Ownable {
     event AddedComplianceDataForUser(address user, bool wasCompliant);
 
     /**
-     * @dev Throws if called in incorrect stage.
+     * @dev Reverts if called in incorrect stage.
      */
     modifier atStage(Stages _stage) {
         require(
             currentStakingRound.stage == _stage,
-            "Function can't be called at this time!"
+            "Function cannot be called at this time!"
         );
 
         _;
     }
 
     /**
-     * @dev Throws if called by any account other than a pool user.
+     * @dev Reverts if called by any account other than a pool user.
      */
     modifier isPoolUser() {
         require(
@@ -95,7 +96,7 @@ contract JuriStakingPool is Ownable {
     }
 
     /**
-     * @dev Throws if called by any pool user account.
+     * @dev Reverts if called by any pool user account.
      */
     modifier isNotPoolUser() {
         require(
@@ -107,7 +108,7 @@ contract JuriStakingPool is Ownable {
     }
 
     /**
-     * @dev Throws if called by any pool user account.
+     * @dev Reverts if called by any pool user account.
      */
     modifier isNotPendingPoolUser() {
         require(
@@ -119,7 +120,20 @@ contract JuriStakingPool is Ownable {
     }
 
     /**
-     * @dev Throws if called by any account other than the Juri address.
+     * @dev Reverts if called by any pool user account.
+     */
+    modifier isPoolUserOrPendingPoolUser() {
+        require(
+            _isInArray(msg.sender, nextStakingRound.usersToAdd)
+            || _isInArray(msg.sender, users),
+            "Only pool users or pending pool users can use this function!"
+        );
+
+        _;
+    }
+
+    /**
+     * @dev Reverts if called by any account other than the Juri address.
      */
     modifier isJuriNetwork() {
         require(
@@ -211,6 +225,11 @@ contract JuriStakingPool is Ownable {
         isNotPoolUser
         atStage(Stages.AWAITING_COMPLIANCE_DATA)
     {
+        require(
+            _amount >= poolDefinition.minStakePerUser,
+            'Please pass at least the min stake per user as amount!'
+        );
+
         nextStakingRound.usersToAdd.push(msg.sender);
 
         addMoreStakeForNextPeriod(_amount);
@@ -241,7 +260,7 @@ contract JuriStakingPool is Ownable {
     function addMoreStakeForNextPeriod(uint256 _amount)
         public
         atStage(Stages.AWAITING_COMPLIANCE_DATA)
-        /* TODO isPoolUser */
+        isPoolUserOrPendingPoolUser
     {
         // TODO think about time restrictions:
         // what if compliance data is not added in time?
@@ -250,7 +269,7 @@ contract JuriStakingPool is Ownable {
         uint256 stakeInNextPeriod
             = nextStakingRound.addedUserStakes[msg.sender];
 
-        require(_amount > 0, "No new token funds approved for staking!");
+        require(_amount > 0, "Please pass an amount higher than 0!");
         require(
             stakeInCurrentPeriod.add(stakeInNextPeriod) < poolDefinition.maxStakePerUser,
             "Cannot add more funds for user, because the max per user is reached!"
@@ -305,6 +324,7 @@ contract JuriStakingPool is Ownable {
     function optInForStakingForNextPeriod()
         public
         atStage(Stages.AWAITING_COMPLIANCE_DATA)
+        isPoolUserOrPendingPoolUser
     {
         nextStakingRound.userIsStaking[msg.sender] = true;
     }
@@ -315,6 +335,7 @@ contract JuriStakingPool is Ownable {
     function optOutOfStakingForNextPeriod()
         public
         atStage(Stages.AWAITING_COMPLIANCE_DATA)
+        isPoolUserOrPendingPoolUser
     {
         nextStakingRound.userIsStaking[msg.sender] = false;
     }
@@ -325,7 +346,7 @@ contract JuriStakingPool is Ownable {
      */
     function withdraw(
         uint256 _amount
-    ) public atStage(Stages.AWAITING_COMPLIANCE_DATA) {
+    ) public atStage(Stages.AWAITING_COMPLIANCE_DATA) isPoolUser {
         bool canWithdrawAll = false;
         _withdrawForUser(msg.sender, _amount, canWithdrawAll);
     }
@@ -361,7 +382,7 @@ contract JuriStakingPool is Ownable {
 
         require(
             ownerFunds > minOwnerFunds + 1,
-            "Can't withdraw below min owner funds!"
+            "Cannot withdraw below min owner funds!"
         );
         require(ownerFunds > 0, "No funds available to withdraw!");
 
@@ -470,7 +491,7 @@ contract JuriStakingPool is Ownable {
                 [currentStakingRound.roundIndex]
                 [user];
 
-            uint256 stake = getStakeForUserInCurrentPeriod(user);
+            uint256 stake = getStakeForUserAtRoundStart(user);
 
             if (wasCompliant) {
                 uint256 newStake = _computeNewCompliantStake(stake);
@@ -567,10 +588,22 @@ contract JuriStakingPool is Ownable {
     }
 
     /**
+     * @dev Read if calling user is staking in the current round.
+     * @return The boolean indicator if user is staking in the current round.
+     */
+    function getIsCurrentRoundStaking()
+        public
+        view
+        returns (bool)
+    {
+        return currentStakingRound.userIsStaking[msg.sender];
+    }
+
+    /**
      * @dev Read if calling user is staking in the next round.
      * @return The boolean indicator if user will be staking next round.
      */
-    function getNextRoundStaking()
+    function getIsNextRoundStaking()
         public
         view
         returns (bool)
@@ -599,6 +632,16 @@ contract JuriStakingPool is Ownable {
         address _user
     ) public view returns (uint256) {
         return currentStakingRound.userStakes[_user];
+    }
+
+    /**
+     * @dev Get stake for user that will be used in current staking round.
+     * @return The amount of stake used in the current round for user.
+     */
+    function getStakeForUserAtRoundStart(
+        address _user
+    ) public view returns (uint256) {
+        return currentStakingRound.userStakesAtRoundStart[_user];
     }
 
     /**
@@ -656,10 +699,15 @@ contract JuriStakingPool is Ownable {
 
     function _moveStakeToNextPeriod(address _user, uint256 _newStake) private {
         uint256 oldStake = currentStakingRound.userStakes[_user];
-        uint256 updatedStake = nextStakingRound.addedUserStakes[_user]
-            .add(_newStake);
+        uint256 withdrawn = currentStakingRound.userStakesAtRoundStart[_user]
+            .sub(currentStakingRound.userStakes[_user]);
+
+        uint256 updatedStake = _newStake
+            .add(nextStakingRound.addedUserStakes[_user])
+            .sub(withdrawn);
 
         currentStakingRound.userStakes[_user] = updatedStake;
+        currentStakingRound.userStakesAtRoundStart[_user] = updatedStake;
         nextStakingRound.addedUserStakes[_user] = 0;
 
         totalUserStake = updatedStake > oldStake
@@ -673,29 +721,34 @@ contract JuriStakingPool is Ownable {
         bool _canWithdrawAll
     ) private {
         uint256 stake = getStakeForUserInCurrentPeriod(_user);
-        uint256 lossPercentage = uint256(100)
-            .sub(poolDefinition.maxNonCompliantPenaltyPercentage);
-
         uint256 stakeAfterWithdraw = stake.sub(_amount);
-        uint256 stakeAfterLoss = stake
-            .mul(lossPercentage).div(100);
-        uint256 maxLoss = stake.sub(stakeAfterLoss);
 
         if (_canWithdrawAll) {
             totalUserStake = totalUserStake.sub(_amount);
         } else {
-            require(
-                stakeAfterWithdraw >= maxLoss,
-                "Cannot withdraw more than safe staking amount!"
-            );
-
-            require(
-                stakeAfterWithdraw >= poolDefinition.maxStakePerUser,
-                "Cannot withdraw more than maxStakePerUser!"
-            );
+            _ensureSufficientStakeLeftForUser(_user, stakeAfterWithdraw);
         }
 
         currentStakingRound.userStakes[_user] = stakeAfterWithdraw;
+    }
+
+    function _ensureSufficientStakeLeftForUser(
+        address _user,
+        uint256 _stakeAfterWithdraw
+    ) private view {
+        uint256 stakeAtRoundStart = getStakeForUserAtRoundStart(_user);
+        uint256 stakeAfterLoss = _computeMaxLossNewStake(stakeAtRoundStart);
+        uint256 maxLoss = stakeAtRoundStart.sub(stakeAfterLoss);
+
+        require(
+            _stakeAfterWithdraw >= maxLoss,
+            "Cannot withdraw more than safe staking amount!"
+        );
+
+        require(
+            _stakeAfterWithdraw >= poolDefinition.minStakePerUser,
+            "Cannot withdraw more than minStakePerUser!"
+        );
     }
 
     function _withdrawFromNextPeriod(
@@ -785,7 +838,7 @@ contract JuriStakingPool is Ownable {
             [_user];
 
         if (!wasCompliant && currentStakingRound.userIsStaking[_user]) {
-            uint256 oldStake = getStakeForUserInCurrentPeriod(_user);
+            uint256 oldStake = getStakeForUserAtRoundStart(_user);
             uint256 newStake = _computeNewNonCompliantStake(oldStake);
             _moveStakeToNextPeriod(_user, newStake);
         }
@@ -817,13 +870,21 @@ contract JuriStakingPool is Ownable {
             poolDefinition.maxNonCompliantPenaltyPercentage;
     }
 
+    function _computeMaxLossNewStake(uint256 _userStake)
+        private
+        view
+        returns (uint256)
+    {
+        return _userStake.mul(poolDefinition.maxNonCompliantFactor).div(100);
+    }
+
     function _computeNewNonCompliantStake(uint256 _userStake)
         private
         view
         returns (uint256)
     {
         if (currentStakingRound.useMaxNonCompliancy) {
-            return _userStake.mul(poolDefinition.maxNonCompliantFactor).div(100);
+            return _computeMaxLossNewStake(_userStake);
         }
 
         uint256 totalStakeToSlash = currentStakingRound.totalStakeToSlash;

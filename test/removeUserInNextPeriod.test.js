@@ -69,7 +69,7 @@ const itRemovesNewUsersCorrectly = async addresses => {
       it('reverts the transacion', async () => {
         await shouldFail.reverting.withMessage(
           pool.removeUserInNextPeriod({ from: poolUsers[0] }),
-          "Function can't be called at this time!"
+          'Function cannot be called at this time!'
         )
       })
     })
@@ -110,7 +110,7 @@ const itRemovesNewUsersCorrectly = async addresses => {
         }
 
         for (let i = 0; i < poolUsers.length; i++) {
-          const userWillBeStaking = await pool.getNextRoundStaking({
+          const userWillBeStaking = await pool.getIsNextRoundStaking({
             from: poolUsers[i],
           })
           expect(userWillBeStaking).to.be.false

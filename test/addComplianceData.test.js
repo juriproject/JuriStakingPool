@@ -110,7 +110,7 @@ const itAddsComplianceDataCorrectly = async addresses => {
               defaultUpdateIterationCount,
               complianceData
             ),
-            "Function can't be called at this time!"
+            "Function cannot be called at this time!"
           )
         })
       })
