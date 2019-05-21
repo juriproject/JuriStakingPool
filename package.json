@@ -4,25 +4,25 @@
     "description": "Juri staking pool for making money while staying fit!",
     "scripts": {
         "build": "bash scripts/build.sh",
-        "compile": "./node_modules/.bin/truffle compile",
+        "compile": "npx truffle compile",
         "test": "bash scripts/run_test.sh"
     },
     "author": "Markus Waas",
     "license": "UNLICENSED",
     "devDependencies": {
-        "assert": "^1.4.1",
         "babel-eslint": "^10.0.1",
         "chai": "^4.2.0",
         "chai-as-promised": "^7.1.1",
         "chai-bignumber": "^3.0.0",
         "chai-bn": "^0.1.1",
-        "eslint": "^5.15.3",
-        "eslint-config-prettier": "^4.1.0",
-        "eslint-plugin-prettier": "^3.0.1",
+        "eslint": "^5.16.0",
+        "eslint-config-prettier": "^4.3.0",
+        "eslint-plugin-prettier": "^3.1.0",
         "ganache-cli": "^6.4.3",
-        "openzeppelin-test-helpers": "^0.3.0",
-        "prettier": "^1.16.4",
-        "truffle": "^5.0.17",
-        "truffle-hdwallet-provider": "^1.0.6"
+        "openzeppelin-test-helpers": "^0.3.2",
+        "prettier": "^1.17.1",
+        "stats-lite": "^2.2.0",
+        "truffle": "^5.0.18",
+        "truffle-hdwallet-provider": "^1.0.9"
     }
 }

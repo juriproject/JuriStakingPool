@@ -1,5 +1,10 @@
 const { setDefaultJuriAddress } = require('./defaults')
-const { deployJuriStakingPool, itSetsPoolDefinition } = require('./helpers')
+const { deployJuriStakingPool } = require('./helpers')
+const {
+  itCorrectlyAddsOwnerFunds,
+  itCorrectlyWithdrawsOwnerFunds,
+  itSetsPoolDefinition,
+} = require('./simpleFunctionTests')
 
 const itRunsPoolRoundsCorrectly = require('./quickTest.test')
 const itAddsNewUsersCorrectly = require('./addUserInNextPeriod.test')
@@ -10,6 +15,8 @@ const itRunsSecondUpdateCorrectly = require('./secondUpdateStakeForNextXAmountOf
 const itAddsMoreStakeCorrectly = require('./addMoreStake.test')
 const itWithdrawsStakeCorrectly = require('./withdraw.test')
 const itChecksContraintsOnOptingInOutOfStaking = require('./optInOutOfStaking.test.js')
+
+const { getGasResults } = require('./gasEvaluationProxy')
 
 const itRunsTestsCorrectlyWithUsers = async ({ addresses, addressesToAdd }) => {
   itAddsNewUsersCorrectly({ addresses, addressesToAdd })
@@ -35,34 +42,68 @@ const runQuickTest = ({ owner, user1, user2, user3, user4 }) => {
     })
 
     it('runs them correctly', async () => {
-      itRunsPoolRoundsCorrectly({ pool, token, user1, user2, user3, user4 })
+      await itRunsPoolRoundsCorrectly({
+        pool,
+        token,
+        user1,
+        user2,
+        user3,
+        user4,
+      })
+    })
+
+    after(() => {
+      const gasResults = getGasResults()
+      if (process.env.LOG_GAS === 'true') console.log({ gasResults })
     })
   })
 }
 
 const runMediumTest = ({ owner, user1, user2, user3, user4, user5, user6 }) => {
-  it('sets poolDefinition', async () => {
-    const { pool } = await deployJuriStakingPool({ addresses: [owner] })
-    itSetsPoolDefinition(pool)
-  })
+  describe('when running with a few users', () => {
+    it('sets poolDefinition', async () => {
+      const { pool } = await deployJuriStakingPool({ addresses: [owner] })
+      itSetsPoolDefinition(pool)
+    })
 
-  itRunsTestsCorrectlyWithUsers({
-    addresses: [owner, user1, user2, user3],
-    addressesToAdd: [user4, user5, user6],
-  })
+    const addresses = [owner, user1, user2, user3]
 
-  itChecksContraintsOnOptingInOutOfStaking([owner, user1, user2, user3])
+    itRunsTestsCorrectlyWithUsers({
+      addresses,
+      addressesToAdd: [user4, user5, user6],
+    })
+
+    itChecksContraintsOnOptingInOutOfStaking(addresses)
+    itCorrectlyAddsOwnerFunds(addresses)
+    itCorrectlyWithdrawsOwnerFunds(addresses)
+
+    after(() => {
+      const gasResults = getGasResults()
+      if (process.env.LOG_GAS === 'true') console.log({ gasResults })
+    })
+  })
 }
 
 const runFullTest = ({ accounts, owner, user1, user2, user3, user4 }) => {
-  itRunsTestsCorrectlyWithUsers({
-    addresses: [owner, user1],
-    addressesToAdd: [user2, user3, user4],
-  })
+  describe('when running with a single or many users', () => {
+    describe('when running with a single user', () => {
+      itRunsTestsCorrectlyWithUsers({
+        addresses: [owner, user1],
+        addressesToAdd: [user2, user3, user4],
+      })
+    })
 
-  itRunsTestsCorrectlyWithUsers({
-    addresses: accounts.slice(0, accounts.length - 3),
-    addressesToAdd: accounts.slice(accounts.length - 3),
+    describe('when running with many users', () => {
+      itRunsTestsCorrectlyWithUsers({
+        addresses: accounts.slice(0, accounts.length - 3),
+        addressesToAdd: accounts.slice(accounts.length - 3),
+      })
+    })
+
+    after(() => {
+      const gasResults = getGasResults()
+      if (process.env.LOG_GAS === 'true') console.log({ gasResults })
+    })
   })
 }
 

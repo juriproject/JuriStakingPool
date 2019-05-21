@@ -15,7 +15,7 @@ const {
   TWO_HUNDRED_TOKEN,
 } = require('./defaults')
 
-// const { createProxyContract } = require('./gasEvaluationProxy')
+const { createProxyContract } = require('./gasEvaluationProxy')
 
 const ERC20Mintable = artifacts.require('./lib/ERC20Mintable.sol')
 const JuriStakingPool = artifacts.require('./JuriStakingPool.sol')
@@ -24,39 +24,6 @@ const asyncForEach = async ({ array, callback }) => {
   for (let index = 0; index < array.length; index++) {
     await callback(array[index], index, array)
   }
-}
-
-const itSetsPoolDefinition = async pool => {
-  const poolDefinition = await pool.poolDefinition()
-  const {
-    compliantGainPercentage,
-    feePercentage,
-    maxNonCompliantPenaltyPercentage,
-    maxStakePerUser,
-    minStakePerUser,
-    maxTotalStake,
-    periodLength,
-    startTime,
-  } = poolDefinition
-
-  expect(periodLength).to.be.bignumber.equal(defaultPeriodLength)
-  expect(feePercentage).to.be.bignumber.equal(defaultFeePercentage)
-  expect(compliantGainPercentage).to.be.bignumber.equal(
-    defaultCompliantGainPercentage
-  )
-  expect(maxNonCompliantPenaltyPercentage).to.be.bignumber.equal(
-    defaultMaxNonCompliantPenaltyPercentage
-  )
-  expect(minStakePerUser).to.be.bignumber.equal(defaultMinStakePerUser)
-  expect(maxStakePerUser).to.be.bignumber.equal(defaultMaxStakePerUser)
-  expect(maxTotalStake).to.be.bignumber.equal(defaultMaxTotalStake)
-
-  const expectedEarliestTime = await time.latest()
-  const expectedLatestTime = (await time.latest()).add(
-    time.duration.seconds(40)
-  )
-  expect(startTime).to.be.bignumber.gt(expectedEarliestTime)
-  expect(startTime).to.be.bignumber.lt(expectedLatestTime)
 }
 
 const logger = (msg, { logLevel = 2 } = {}) => {
@@ -264,12 +231,12 @@ const deployJuriStakingPool = async ({
     juriAddress
   )
 
-  return { pool, token }
+  return { pool: createProxyContract(pool), token }
 }
 
 const initialPoolSetup = async ({ pool, poolUsers, poolStakes, token }) => {
   await token.approve(pool.address, ONE_HUNDRED_TOKEN)
-  await pool.addOwnerFunds()
+  await pool.addOwnerFunds(ONE_HUNDRED_TOKEN)
 
   await asyncForEach({
     array: poolUsers,
@@ -359,7 +326,6 @@ module.exports = {
   deployJuriStakingPool,
   expectUserCountToBe,
   initialPoolSetup,
-  itSetsPoolDefinition,
   logComplianceDataForFirstPeriods,
   logFirstUsers,
   logger,

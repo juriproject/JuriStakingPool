@@ -15,9 +15,7 @@ const itWithdrawsStakeCorrectly = async addresses => {
 
   describe('when adding more stake', async () => {
     beforeEach(async () => {
-      const deployedContracts = await deployJuriStakingPool({
-        addresses,
-      })
+      const deployedContracts = await deployJuriStakingPool({ addresses })
 
       token = deployedContracts.token
       pool = deployedContracts.pool

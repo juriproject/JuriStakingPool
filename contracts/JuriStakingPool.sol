@@ -354,20 +354,18 @@ contract JuriStakingPool is Ownable {
     /**
      * @dev Add owner funds to pool.
      */
-    function addOwnerFunds()
+    function addOwnerFunds(uint256 _amount)
         public
         onlyOwner
         atStage(Stages.AWAITING_COMPLIANCE_DATA)
     {
-        uint256 addedAmount = token.allowance(msg.sender, address(this));
-
-        require(addedAmount > 0, "No new token funds approved for addition!");
+        require(_amount > 0, "Please pass an amount higher than 0!");
         require(
-            token.transferFrom(msg.sender, address(this), addedAmount),
+            token.transferFrom(msg.sender, address(this), _amount),
             "Token transfer failed!"
         );
 
-        ownerFunds = ownerFunds.add(addedAmount);
+        ownerFunds = ownerFunds.add(_amount);
     }
 
     /**
@@ -380,11 +378,13 @@ contract JuriStakingPool is Ownable {
         uint256 amount = _amount;
         uint256 minOwnerFunds = _computeMinOwnerFunds();
 
+        require(amount > 0, "Please pass an amount higher than 0!!");
+        require(ownerFunds > 0, "No funds available to withdraw!");
+
         require(
             ownerFunds > minOwnerFunds + 1,
             "Cannot withdraw below min owner funds!"
         );
-        require(ownerFunds > 0, "No funds available to withdraw!");
 
         if (ownerFunds < minOwnerFunds.add(amount)) {
             amount = ownerFunds.sub(minOwnerFunds);
@@ -398,7 +398,7 @@ contract JuriStakingPool is Ownable {
     }
 
     /**
-     * @dev Add user"s compliancy data for current or past periods.
+     * @dev Add user's compliancy data for current or past periods.
      * @param _updateIterationCount The number defining the max for how much compliance
      * data will be passed in a single function call to prevent out-of-gas errors.
      * @param _wasCompliant The boolean array to indicate compliancy.

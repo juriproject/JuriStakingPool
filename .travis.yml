@@ -27,4 +27,4 @@ install:
   - npm install 
 
 script:
-  - TESTING_MODE=$TEST_SUITE npm run test
+  - TESTING_MODE=$TEST_SUITE LOG_GAS=true npm run test

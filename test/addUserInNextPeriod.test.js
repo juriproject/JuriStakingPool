@@ -48,7 +48,7 @@ const itAddsNewUsersCorrectly = async ({ addresses, addressesToAdd }) => {
     describe('when called with amount below min stake per user', async () => {
       it('reverts the transacion', async () => {
         await shouldFail.reverting.withMessage(
-          pool.addUserInNextPeriod(1, { from: poolUsers[0] }),
+          pool.addUserInNextPeriod(1, { from: addresses[0] }),
           'Please pass at least the min stake per user as amount!'
         )
       })

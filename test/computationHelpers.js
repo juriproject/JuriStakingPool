@@ -48,16 +48,19 @@ const computeUseMaxNonCompliancy = ({
 const computeJuriFees = ({ feePercentage, totalUserStake }) =>
   totalUserStake.mul(feePercentage).div(new BN(100))
 
+const computeTotalUserStake = poolStakes =>
+  poolStakes.reduce(
+    (totalStake, userStake) => totalStake.add(userStake),
+    new BN(0)
+  )
+
 const computeTotalPayout = ({
   compliantGainPercentage,
   compliantThreshold,
   feePercentage,
   poolStakes,
 }) => {
-  const totalUserStake = poolStakes.reduce(
-    (totalStake, userStake) => totalStake.add(userStake),
-    new BN(0)
-  )
+  const totalUserStake = computeTotalUserStake(poolStakes)
 
   const juriFees = computeJuriFees({
     feePercentage,
@@ -101,9 +104,20 @@ const computeUnderWriterLiability = ({
   return totalPayout.sub(fundedPayoutFromSlashedStake)
 }
 
+const computeMinOwnerFunds = ({ compliantGainPercentage, poolStakes }) => {
+  const totalUserStake = computeTotalUserStake(poolStakes)
+
+  const maxNewStakeAfterRound = totalUserStake.mul(
+    new BN(100).add(compliantGainPercentage)
+  )
+
+  return maxNewStakeAfterRound.sub(totalUserStake)
+}
+
 module.exports = {
   computeJuriFees,
   computeMaxLossNewStake,
+  computeMinOwnerFunds,
   computeNewCompliantStake,
   computeNewNonCompliantStake,
   computeTotalPayout,
