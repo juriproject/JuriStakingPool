@@ -254,51 +254,57 @@ const itAddsMoreStakeCorrectly = async ({ addresses, addressesToAdd }) => {
     })
 
     it('adds up to max of pool', async () => {
-      const totalCurrentStake = poolStakes.reduce(
-        (sum, stake) => sum.add(stake),
-        new BN(0)
-      )
-      const leftToMax = new BN(6000)
+      if (poolUsers.length > 1) {
+        const totalCurrentStake = poolStakes.reduce(
+          (sum, stake) => sum.add(stake),
+          new BN(0)
+        )
+        const leftToMax = new BN(6000)
 
-      await token.approve(pool.address, ONE_HUNDRED_TOKEN.sub(poolStakes[0]), {
-        from: poolUsers[0],
-      })
-      await pool.addMoreStakeForNextPeriod(ONE_HUNDRED_TOKEN, {
-        from: poolUsers[0],
-      })
+        await token.approve(
+          pool.address,
+          ONE_HUNDRED_TOKEN.sub(poolStakes[0]),
+          {
+            from: poolUsers[0],
+          }
+        )
+        await pool.addMoreStakeForNextPeriod(ONE_HUNDRED_TOKEN, {
+          from: poolUsers[0],
+        })
 
-      await token.approve(
-        pool.address,
-        ONE_HUNDRED_TOKEN.sub(leftToMax).sub(totalCurrentStake),
-        {
-          from: poolUsers[1],
-        }
-      )
-      await pool.addMoreStakeForNextPeriod(
-        ONE_HUNDRED_TOKEN.sub(leftToMax).sub(totalCurrentStake),
-        {
-          from: poolUsers[1],
-        }
-      )
+        await token.approve(
+          pool.address,
+          ONE_HUNDRED_TOKEN.sub(leftToMax).sub(totalCurrentStake),
+          {
+            from: poolUsers[1],
+          }
+        )
+        await pool.addMoreStakeForNextPeriod(
+          ONE_HUNDRED_TOKEN.sub(leftToMax).sub(totalCurrentStake),
+          {
+            from: poolUsers[1],
+          }
+        )
 
-      await token.approve(pool.address, ONE_HUNDRED_TOKEN, {
-        from: poolUsers[2],
-      })
-      await pool.addMoreStakeForNextPeriod(ONE_HUNDRED_TOKEN, {
-        from: poolUsers[2],
-      })
+        await token.approve(pool.address, ONE_HUNDRED_TOKEN, {
+          from: poolUsers[2],
+        })
+        await pool.addMoreStakeForNextPeriod(ONE_HUNDRED_TOKEN, {
+          from: poolUsers[2],
+        })
 
-      const stakeAtCurrentPeriod = await pool.getStakeForUserInCurrentPeriod(
-        poolUsers[2]
-      )
-      const stakeAtNextPeriod = await pool.getAdditionalStakeForUserInNextPeriod(
-        poolUsers[2]
-      )
+        const stakeAtCurrentPeriod = await pool.getStakeForUserInCurrentPeriod(
+          poolUsers[2]
+        )
+        const stakeAtNextPeriod = await pool.getAdditionalStakeForUserInNextPeriod(
+          poolUsers[2]
+        )
 
-      expect(stakeAtCurrentPeriod).to.be.bignumber.equal(poolStakes[2])
-      expect(stakeAtNextPeriod).to.be.bignumber.equal(
-        leftToMax.add(poolStakes[0])
-      )
+        expect(stakeAtCurrentPeriod).to.be.bignumber.equal(poolStakes[2])
+        expect(stakeAtNextPeriod).to.be.bignumber.equal(
+          leftToMax.add(poolStakes[0])
+        )
+      }
     })
 
     describe('when the maximum total stake in pool is reached', async () => {

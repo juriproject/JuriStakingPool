@@ -42,6 +42,7 @@ const logCurrentRound = (
     updateStaking1Index,
     updateStaking2Index,
     useMaxNonCompliancy,
+    addComplianceDataIndex,
   },
   { logLevel = 1 } = {}
 ) => {
@@ -70,6 +71,12 @@ const logCurrentRound = (
   logger('currentRound.juriFees: ' + juriFees.toString(), {
     logLevel,
   })
+  logger(
+    'currentRound.addComplianceDataIndex: ' + addComplianceDataIndex.toString(),
+    {
+      logLevel,
+    }
+  )
 }
 
 const logPoolState = async (pool, { logLevel = 2 } = {}) => {
@@ -87,7 +94,7 @@ const logPoolState = async (pool, { logLevel = 2 } = {}) => {
   }
 
   logCurrentRound(currentStakingRound, { logLevel })
-  logger({ totalUserStake }, { logLevel: 1 }, { logLevel })
+  logger({ totalUserStake }, { logLevel })
 
   logger(
     {
@@ -101,7 +108,7 @@ const logPoolState = async (pool, { logLevel = 2 } = {}) => {
 
 const runPoolRound = async ({ complianceData, pool, poolUsers }) => {
   await time.increase(defaultPeriodLength)
-  const receipt0 = await pool.addWasCompliantDataForUsers(
+  await pool.addWasCompliantDataForUsers(
     defaultUpdateIterationCount,
     complianceData
   )
@@ -113,28 +120,14 @@ const runPoolRound = async ({ complianceData, pool, poolUsers }) => {
     users: poolUsers,
   })
 
-  const gasUsedComplianceData = receipt0.receipt.gasUsed
-  const receipt1 = await pool.firstUpdateStakeForNextXAmountOfUsers(
-    defaultUpdateIterationCount
-  )
-  const gasUsedFirstUpdate = receipt1.receipt.gasUsed
+  await pool.firstUpdateStakeForNextXAmountOfUsers(defaultUpdateIterationCount)
 
   logger('************ State in middle of round ************', {
     logLevel: 1,
   })
   await logPoolState(pool)
 
-  const receipt2 = await pool.secondUpdateStakeForNextXAmountOfUsers(
-    defaultUpdateIterationCount
-  )
-  const gasUsedSecondUpdate = receipt2.receipt.gasUsed
-
-  logger({
-    gasUsedComplianceData,
-    gasUsedFirstUpdate,
-    gasUsedSecondUpdate,
-  })
-
+  await pool.secondUpdateStakeForNextXAmountOfUsers(defaultUpdateIterationCount)
   logger('************ State after round ************', { logLevel: 1 })
   await logPoolState(pool)
 
@@ -173,7 +166,10 @@ const logUserBalancesForFirstPeriods = async ({ pool, users }) => {
   logger({ stakesAtNextRound })
 }
 
-const logComplianceDataForFirstPeriods = async ({ pool, users }) => {
+const logComplianceDataForFirstPeriods = async (
+  { pool, users },
+  { logLevel }
+) => {
   const stakePeriodCount = 4
 
   for (let i = 0; i < stakePeriodCount; i++) {
@@ -183,7 +179,7 @@ const logComplianceDataForFirstPeriods = async ({ pool, users }) => {
       )
     )
 
-    logger({ i, complianceDataAt })
+    logger({ i, complianceDataAt }, { logLevel })
   }
 }
 
@@ -253,7 +249,12 @@ const initialPoolSetup = async ({ pool, poolUsers, poolStakes, token }) => {
 
   await pool.addWasCompliantDataForUsers(defaultUpdateIterationCount, [])
   await pool.firstUpdateStakeForNextXAmountOfUsers(defaultUpdateIterationCount)
-  await pool.secondUpdateStakeForNextXAmountOfUsers(defaultUpdateIterationCount)
+
+  await runFullSecondUpdate({
+    pool,
+    poolUsers,
+    updateIterationCount: defaultUpdateIterationCount,
+  })
 
   logger('************ After first period ************')
   await logPoolState(pool)
@@ -270,7 +271,26 @@ const runFullComplianceDataAddition = async ({
     i.lt(new BN(poolUsers.length));
     i = i.add(updateIterationCount)
   ) {
-    await pool.addWasCompliantDataForUsers(updateIterationCount, complianceData)
+    const complianceDataSplit = complianceData.slice(
+      i.toNumber(),
+      i.toNumber() + updateIterationCount
+    )
+
+    console.log('length', i.toString(), ' -> ', complianceDataSplit.length)
+
+    console.log(`************ UPDATE1 ${i.toString()} ************`)
+    console.log('************ Before adding ************')
+    await logPoolState(pool, { logLevel: 0 })
+
+    await pool.addWasCompliantDataForUsers(
+      updateIterationCount,
+      complianceDataSplit
+    )
+
+    console.log('************ After adding ************')
+    await logPoolState(pool, { logLevel: 0 })
+
+    console.log(`************ FINISHED UPDATE1 ${i.toString()} ************`)
   }
 }
 

@@ -11,7 +11,7 @@ const defaultMaxNonCompliantPenaltyPercentage = new BN(5)
 const defaultMinStakePerUser = new BN(500)
 const defaultMaxStakePerUser = ONE_HUNDRED_TOKEN
 const defaultMaxTotalStake = TWO_HUNDRED_TOKEN
-const defaultUpdateIterationCount = new BN(500)
+const defaultUpdateIterationCount = new BN(20)
 
 let defaultJuriAddress
 

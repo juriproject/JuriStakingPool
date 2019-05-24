@@ -411,6 +411,21 @@ contract JuriStakingPool is Ownable {
         isJuriNetwork
         atStage(Stages.AWAITING_COMPLIANCE_DATA)
     {
+        // Commented out, because currently not supported anyways to add
+        // multiple compliance data lists due to stage restriction.
+        /* require(
+            complianceDataIndex <= currentStakingPeriodIndex,
+            "Cannot add compliance data for future periods!"
+        ); */
+
+        uint256 nextStakingPeriodEndTime = poolDefinition.startTime.add(
+            currentStakingRound.roundIndex.mul(poolDefinition.periodLength)
+        );
+        require(
+            now > nextStakingPeriodEndTime,
+            "Can only add new data after end of periodLength!"
+        );
+
         if (currentStakingRound.addComplianceDataIndex
             .add(_updateIterationCount) > users.length
         ) {
@@ -421,35 +436,18 @@ contract JuriStakingPool is Ownable {
             );
         }
 
-        // Commented out, because currently not supported anyways to add multiple
-        // compliance data lists due to stage restriction.
-        /* require(
-            complianceDataIndex <= currentStakingPeriodIndex,
-            "Cannot add compliance data for future periods!"
-        ); */
-
-        if (complianceDataIndex == currentStakingRound.roundIndex) {
-            uint256 nextStakingPeriodEndTime
-                = poolDefinition.startTime.add(
-                    currentStakingRound.roundIndex
-                        .mul(poolDefinition.periodLength)
-                );
-            require(
-                now > nextStakingPeriodEndTime,
-                "Can only add new data after end of periodLength!"
-            );
-        }
-
         for (
-            uint256 i = currentStakingRound.addComplianceDataIndex;
+            uint256 i = currentStakingRound.addComplianceDataIndex,
+            uint256 j = 0;
             i < users.length && i <
                 currentStakingRound.addComplianceDataIndex
                     .add(_updateIterationCount);
-            i++
+            i++,
+            j++
         ) {
             complianceDataAtIndex[complianceDataIndex][users[i]]
-                = _wasCompliant[i];
-            emit AddedComplianceDataForUser(users[i], _wasCompliant[i]);
+                = _wasCompliant[j];
+            emit AddedComplianceDataForUser(users[i], _wasCompliant[j]);
         }
 
         currentStakingRound.addComplianceDataIndex
@@ -533,24 +531,29 @@ contract JuriStakingPool is Ownable {
 
         for (
             uint256 i = currentStakingRound.updateStaking2Index;
-            i < users.length && i <
+            (i < users.length || i < nextStakingRound.usersToAdd.length) && i <
                 currentStakingRound.updateStaking2Index.add(_updateIterationCount);
             i++
         ) {
-            address user = users[i];
-            _handleSecondUpdateForUser(user);
+            if (users.length > i) {
+                _handleSecondUpdateForUser(users[i]);
+            }
 
-            if (nextStakingRound.userIsLeaving[user]) {
-                nextStakingRound.userIsLeaving[user] = false;
+            if (users.length > i && nextStakingRound.userIsLeaving[users[i]]) {
+                nextStakingRound.userIsLeaving[users[i]] = false;
                 _removeUserAtIndex(i);
                 i--; // adapt to decremented user array
+            } else if (nextStakingRound.usersToAdd.length > i) {
+                _addPendingUser(nextStakingRound.usersToAdd[i]);
             }
         }
 
         currentStakingRound.updateStaking2Index
             = currentStakingRound.updateStaking2Index.add(_updateIterationCount);
 
-        if (currentStakingRound.updateStaking2Index >= users.length) {
+        if (currentStakingRound.updateStaking2Index >= users.length &&
+            currentStakingRound.updateStaking2Index >= nextStakingRound.usersToAdd.length
+        ) {
             _handleJuriFees();
             _handleUnderwriting();
             _resetPoolForNextPeriod();
@@ -789,16 +792,12 @@ contract JuriStakingPool is Ownable {
         );
     }
 
-    function _addPendingUsers() private {
-        for (uint256 i = 0; i < nextStakingRound.usersToAdd.length; i++) {
-            address newUser = nextStakingRound.usersToAdd[i];
+    function _addPendingUser(address _newUser) private {
+        users.push(_newUser);
+        _moveStakeToNextPeriod(_newUser, 0);
 
-            users.push(newUser);
-            _moveStakeToNextPeriod(newUser, 0);
-
-            currentStakingRound.userIsStaking[newUser]
-                = nextStakingRound.userIsStaking[newUser];
-        }
+        currentStakingRound.userIsStaking[_newUser]
+            = nextStakingRound.userIsStaking[_newUser];
     }
 
     function _removeUserAtIndex(uint256 _index) private {
@@ -953,8 +952,6 @@ contract JuriStakingPool is Ownable {
     }
 
     function _resetPoolForNextPeriod() private {
-        _addPendingUsers();
-
         _setStakingPeriodVariables(currentStakingRound.roundIndex + 1);
         _ensureContractIsFundedForNextRound();
 
