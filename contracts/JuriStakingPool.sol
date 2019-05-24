@@ -437,13 +437,11 @@ contract JuriStakingPool is Ownable {
         }
 
         for (
-            uint256 i = currentStakingRound.addComplianceDataIndex,
-            uint256 j = 0;
+            (uint256 i, uint256 j) = (currentStakingRound.addComplianceDataIndex, 0);
             i < users.length && i <
                 currentStakingRound.addComplianceDataIndex
                     .add(_updateIterationCount);
-            i++,
-            j++
+            (i++, j++)
         ) {
             complianceDataAtIndex[complianceDataIndex][users[i]]
                 = _wasCompliant[j];
