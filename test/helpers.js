@@ -30,6 +30,7 @@ const logger = (msg, { logLevel = 2 } = {}) => {
   if (process.env.LOG_LEVEL === '2' && logLevel <= 2) console.log(msg)
   if (process.env.LOG_LEVEL === '1' && logLevel <= 1) console.log(msg)
   if (process.env.LOG_LEVEL === '0' && logLevel <= 0) console.log(msg)
+  if (logLevel < 0) console.log(msg)
 }
 
 const logCurrentRound = (
@@ -276,21 +277,25 @@ const runFullComplianceDataAddition = async ({
       i.toNumber() + updateIterationCount
     )
 
-    console.log('length', i.toString(), ' -> ', complianceDataSplit.length)
+    logger(`************ UPDATE1 ${i.toString()} ************`, { logLevel: 2 })
+    logger('length', i.toString(), ' -> ', complianceDataSplit.length, {
+      logLevel: 2,
+    })
 
-    console.log(`************ UPDATE1 ${i.toString()} ************`)
-    console.log('************ Before adding ************')
-    await logPoolState(pool, { logLevel: 0 })
+    logger('************ Before adding ************', { logLevel: 2 })
+    await logPoolState(pool, { logLevel: 2 })
 
     await pool.addWasCompliantDataForUsers(
       updateIterationCount,
       complianceDataSplit
     )
 
-    console.log('************ After adding ************')
-    await logPoolState(pool, { logLevel: 0 })
+    logger('************ After adding ************', { logLevel: 2 })
+    await logPoolState(pool, { logLevel: 2 })
 
-    console.log(`************ FINISHED UPDATE1 ${i.toString()} ************`)
+    logger(`************ FINISHED UPDATE1 ${i.toString()} ************`, {
+      logLevel: 2,
+    })
   }
 }
 

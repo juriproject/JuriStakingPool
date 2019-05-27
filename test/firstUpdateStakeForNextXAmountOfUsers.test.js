@@ -13,6 +13,7 @@ const {
   initialPoolSetup,
   runFullComplianceDataAddition,
   runFullFirstUpdate,
+  runFullSecondUpdate,
   runFullCompleteRound,
   Stages,
 } = require('./helpers')
@@ -21,13 +22,13 @@ const { computeNewCompliantStake } = require('./computationHelpers')
 
 const itRunsFirstUpdateCorrectly = async addresses => {
   describe('when running the first update', async () => {
-    let complianceData, juriStakingPool, pool, poolUsers, poolStakes, token
+    let complianceData, pool, poolUsers, poolStakes, token
 
     beforeEach(async () => {
       const deployedContracts = await deployJuriStakingPool({ addresses })
 
       token = deployedContracts.token
-      juriStakingPool = deployedContracts.pool
+      pool = deployedContracts.pool
 
       poolUsers = addresses.slice(1, addresses.length) // without owner
       poolStakes = new Array(poolUsers.length).fill(new BN(1000))
@@ -36,19 +37,19 @@ const itRunsFirstUpdateCorrectly = async addresses => {
         .fill(true, poolUsers.length / 2)
 
       await initialPoolSetup({
-        pool: juriStakingPool,
+        pool,
         poolUsers,
         poolStakes,
         token,
       })
       await time.increase(defaultPeriodLength)
 
-      await juriStakingPool.addWasCompliantDataForUsers(
-        defaultUpdateIterationCount,
-        complianceData
-      )
-
-      pool = juriStakingPool
+      await runFullComplianceDataAddition({
+        complianceData,
+        pool,
+        poolUsers,
+        updateIterationCount: defaultUpdateIterationCount,
+      })
     })
 
     describe('when called by owner', async () => {
@@ -81,9 +82,11 @@ const itRunsFirstUpdateCorrectly = async addresses => {
 
     describe('when called in stage AWAITING_SECOND_UPDATE', async () => {
       beforeEach(async () => {
-        await pool.firstUpdateStakeForNextXAmountOfUsers(
-          defaultUpdateIterationCount
-        )
+        await runFullFirstUpdate({
+          pool,
+          poolUsers,
+          updateIterationCount: defaultUpdateIterationCount,
+        })
       })
 
       it('reverts the transaction', async () => {
@@ -98,15 +101,19 @@ const itRunsFirstUpdateCorrectly = async addresses => {
 
     describe('when called in stage AWAITING_COMPLIANCE_DATA', async () => {
       beforeEach(async () => {
-        await pool.firstUpdateStakeForNextXAmountOfUsers(
-          defaultUpdateIterationCount
-        )
-        await pool.secondUpdateStakeForNextXAmountOfUsers(
-          defaultUpdateIterationCount
-        )
+        await runFullFirstUpdate({
+          pool,
+          poolUsers,
+          updateIterationCount: defaultUpdateIterationCount,
+        })
+        await runFullSecondUpdate({
+          pool,
+          poolUsers,
+          updateIterationCount: defaultUpdateIterationCount,
+        })
       })
 
-      it('reverts the transaction', async () => {
+      it.only('reverts the transaction', async () => {
         await shouldFail.reverting.withMessage(
           pool.firstUpdateStakeForNextXAmountOfUsers(
             defaultUpdateIterationCount
