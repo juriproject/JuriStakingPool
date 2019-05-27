@@ -1,3 +1,5 @@
+const { getGasResults, storeResults } = require('gastracker')
+
 const { setDefaultJuriAddress } = require('./defaults')
 const { deployJuriStakingPool } = require('./helpers')
 const {
@@ -15,8 +17,6 @@ const itRunsSecondUpdateCorrectly = require('./secondUpdateStakeForNextXAmountOf
 const itAddsMoreStakeCorrectly = require('./addMoreStake.test')
 const itWithdrawsStakeCorrectly = require('./withdraw.test')
 const itChecksContraintsOnOptingInOutOfStaking = require('./optInOutOfStaking.test.js')
-
-const { getGasResults } = require('./gasEvaluationProxy')
 
 const itRunsTestsCorrectlyWithUsers = async ({ addresses, addressesToAdd }) => {
   itAddsNewUsersCorrectly({ addresses, addressesToAdd })
@@ -53,8 +53,9 @@ const runQuickTest = ({ owner, user1, user2, user3, user4 }) => {
     })
 
     after(() => {
-      const gasResults = getGasResults()
-      if (process.env.LOG_GAS === 'true') console.log({ gasResults })
+      if (process.env.LOG_GAS === 'true')
+        console.log({ gasResults: getGasResults() })
+      if (process.env.STORE_GAS_RESULTS === 'true') storeResults('./data.json')
     })
   })
 }
@@ -78,8 +79,9 @@ const runMediumTest = ({ owner, user1, user2, user3, user4, user5, user6 }) => {
     itCorrectlyWithdrawsOwnerFunds(addresses)
 
     after(() => {
-      const gasResults = getGasResults()
-      if (process.env.LOG_GAS === 'true') console.log({ gasResults })
+      if (process.env.LOG_GAS === 'true')
+        console.log({ gasResults: getGasResults() })
+      if (process.env.STORE_GAS_RESULTS === 'true') storeResults('./data.json')
     })
   })
 }
@@ -101,8 +103,9 @@ const runFullTest = ({ accounts, owner, user1, user2, user3, user4 }) => {
     })
 
     after(() => {
-      const gasResults = getGasResults()
-      if (process.env.LOG_GAS === 'true') console.log({ gasResults })
+      if (process.env.LOG_GAS === 'true')
+        console.log({ gasResults: getGasResults() })
+      if (process.env.STORE_GAS_RESULTS === 'true') storeResults('./data.json')
     })
   })
 }

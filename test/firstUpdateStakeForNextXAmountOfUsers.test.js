@@ -113,7 +113,7 @@ const itRunsFirstUpdateCorrectly = async addresses => {
         })
       })
 
-      it.only('reverts the transaction', async () => {
+      it('reverts the transaction', async () => {
         await shouldFail.reverting.withMessage(
           pool.firstUpdateStakeForNextXAmountOfUsers(
             defaultUpdateIterationCount

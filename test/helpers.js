@@ -1,4 +1,5 @@
 const { expect } = require('chai')
+const { createProxyContract } = require('gastracker')
 const { BN, time } = require('openzeppelin-test-helpers')
 
 const {
@@ -14,8 +15,6 @@ const {
   ONE_HUNDRED_TOKEN,
   TWO_HUNDRED_TOKEN,
 } = require('./defaults')
-
-const { createProxyContract } = require('./gasEvaluationProxy')
 
 const ERC20Mintable = artifacts.require('./lib/ERC20Mintable.sol')
 const JuriStakingPool = artifacts.require('./JuriStakingPool.sol')
@@ -169,7 +168,7 @@ const logUserBalancesForFirstPeriods = async ({ pool, users }) => {
 
 const logComplianceDataForFirstPeriods = async (
   { pool, users },
-  { logLevel }
+  { logLevel = 2 } = {}
 ) => {
   const stakePeriodCount = 4
 
