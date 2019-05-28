@@ -20,7 +20,6 @@ const {
   runFullSecondUpdate,
   runFullCompleteRound,
   Stages,
-  logPoolState,
 } = require('./helpers')
 
 const {
@@ -321,8 +320,14 @@ const itRunsSecondUpdateCorrectly = async addresses => {
                 i.lt(new BN(poolUsers.length - 1));
                 i = i.add(defaultUpdateIterationCount)
               ) {
+                const updateIterationCount = i
+                  .add(defaultUpdateIterationCount)
+                  .gt(new BN(poolUsers.length - 1))
+                  ? new BN(poolUsers.length - 1).sub(i)
+                  : defaultUpdateIterationCount
+
                 await pool.secondUpdateStakeForNextXAmountOfUsers(
-                  defaultUpdateIterationCount
+                  updateIterationCount
                 )
               }
             }
@@ -898,7 +903,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
           complianceData = new Array(poolUsers.length)
             .fill(false)
             .fill(true, poolUsers.length / 2)
-          compliantThreshold = poolUsers.length / 2
+          compliantThreshold = Math.floor(poolUsers.length / 2)
 
           await runFullComplianceDataAddition({
             complianceData,
@@ -936,23 +941,6 @@ const itRunsSecondUpdateCorrectly = async addresses => {
             const currentStakeAfter = await pool.getStakeForUserInCurrentPeriod(
               poolUsers[i]
             )
-
-            await logPoolState(pool, { logLevel: -1 })
-
-            console.log({
-              i,
-              currentStakeAfter: currentStakeAfter.toString(),
-              expectedStakeAfter: computeNewNonCompliantStake({
-                maxNonCompliantPenaltyPercentage,
-                totalPayout,
-                totalStakeToSlash,
-                userStake: poolStakes[i],
-              }).toString(),
-              maxNonCompliantPenaltyPercentage: maxNonCompliantPenaltyPercentage.toString(),
-              totalPayout: totalPayout.toString(),
-              totalStakeToSlash: totalStakeToSlash.toString(),
-              userStake: poolStakes[i].toString(),
-            })
 
             expect(currentStakeAfter).to.be.bignumber.equal(
               computeNewNonCompliantStake({

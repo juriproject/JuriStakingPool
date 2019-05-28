@@ -227,7 +227,7 @@ const deployJuriStakingPool = async ({
     juriAddress
   )
 
-  return { pool: createProxyContract(pool), token }
+  return { pool: createProxyContract(pool, 'JuriStakingPool'), token }
 }
 
 const initialPoolSetup = async ({ pool, poolUsers, poolStakes, token }) => {

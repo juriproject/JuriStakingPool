@@ -529,8 +529,11 @@ contract JuriStakingPool is Ownable {
 
         for (
             uint256 i = currentStakingRound.updateStaking2Index;
-            (i < users.length || i < nextStakingRound.usersToAdd.length) && i <
-                currentStakingRound.updateStaking2Index.add(_updateIterationCount);
+            (
+                i.add(nextStakingRound.usersToAdd.length) < users.length
+                || i < nextStakingRound.usersToAdd.length)
+                && i < currentStakingRound.updateStaking2Index
+                    .add(_updateIterationCount);
             i++
         ) {
             if (users.length > i) {

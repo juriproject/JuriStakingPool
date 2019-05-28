@@ -54,7 +54,7 @@ const runQuickTest = ({ owner, user1, user2, user3, user4 }) => {
 
     after(() => {
       if (process.env.LOG_GAS === 'true')
-        console.log({ gasResults: getGasResults() })
+        console.log({ gasResults: JSON.stringify(getGasResults()) })
       if (process.env.STORE_GAS_RESULTS === 'true') storeResults('./data.json')
     })
   })
@@ -80,7 +80,7 @@ const runMediumTest = ({ owner, user1, user2, user3, user4, user5, user6 }) => {
 
     after(() => {
       if (process.env.LOG_GAS === 'true')
-        console.log({ gasResults: getGasResults() })
+        console.log({ gasResults: JSON.stringify(getGasResults()) })
       if (process.env.STORE_GAS_RESULTS === 'true') storeResults('./data.json')
     })
   })
@@ -104,7 +104,7 @@ const runFullTest = ({ accounts, owner, user1, user2, user3, user4 }) => {
 
     after(() => {
       if (process.env.LOG_GAS === 'true')
-        console.log({ gasResults: getGasResults() })
+        console.log({ gasResults: JSON.stringify(getGasResults()) })
       if (process.env.STORE_GAS_RESULTS === 'true') storeResults('./data.json')
     })
   })
