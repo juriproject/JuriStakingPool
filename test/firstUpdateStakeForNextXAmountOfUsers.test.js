@@ -427,7 +427,8 @@ const itRunsFirstUpdateCorrectly = async addresses => {
       describe('when using a small updateIterationCount', async () => {
         const updateIterationCount = new BN(1)
 
-        itRunsFirstUpdateCorrectlyWithIterationCount(updateIterationCount)
+        if (process.env.TESTING_MODE !== 'FULL_TESTING')
+          itRunsFirstUpdateCorrectlyWithIterationCount(updateIterationCount)
       })
 
       describe('when using a high updateIterationCount', async () => {

@@ -31,7 +31,7 @@ const {
 } = require('./computationHelpers')
 
 const itRunsSecondUpdateCorrectly = async addresses => {
-  describe('when running second the update', async () => {
+  describe('when running the second update', async () => {
     let complianceData,
       compliantThreshold,
       pool,
@@ -787,7 +787,8 @@ const itRunsSecondUpdateCorrectly = async addresses => {
       describe('when using a small updateIterationCount', async () => {
         const updateIterationCount = new BN(1)
 
-        itRunsSecondUpdateCorrectlyWithIterationCount(updateIterationCount)
+        if (process.env.TESTING_MODE !== 'FULL_TESTING')
+          itRunsSecondUpdateCorrectlyWithIterationCount(updateIterationCount)
       })
 
       describe('when using a high updateIterationCount', async () => {

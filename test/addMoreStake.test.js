@@ -309,28 +309,32 @@ const itAddsMoreStakeCorrectly = async ({ addresses, addressesToAdd }) => {
 
     describe('when the maximum total stake in pool is reached', async () => {
       beforeEach(async () => {
-        await token.approve(pool.address, TWO_HUNDRED_TOKEN, {
-          from: poolUsers[0],
-        })
-        await pool.addMoreStakeForNextPeriod(TWO_HUNDRED_TOKEN, {
-          from: poolUsers[0],
-        })
+        if (poolUsers.length > 1) {
+          await token.approve(pool.address, TWO_HUNDRED_TOKEN, {
+            from: poolUsers[0],
+          })
+          await pool.addMoreStakeForNextPeriod(TWO_HUNDRED_TOKEN, {
+            from: poolUsers[0],
+          })
 
-        await token.approve(pool.address, TWO_HUNDRED_TOKEN, {
-          from: poolUsers[1],
-        })
-        await pool.addMoreStakeForNextPeriod(TWO_HUNDRED_TOKEN, {
-          from: poolUsers[1],
-        })
+          await token.approve(pool.address, TWO_HUNDRED_TOKEN, {
+            from: poolUsers[1],
+          })
+          await pool.addMoreStakeForNextPeriod(TWO_HUNDRED_TOKEN, {
+            from: poolUsers[1],
+          })
+        }
       })
 
       it('reverts for adding more stake with an error describing max in pool is reached', async () => {
-        await shouldFail.reverting.withMessage(
-          pool.addMoreStakeForNextPeriod(100, {
-            from: poolUsers[2],
-          }),
-          'Cannot add more funds to pool, because the max in pool is reached!'
-        )
+        if (poolUsers.length > 1) {
+          await shouldFail.reverting.withMessage(
+            pool.addMoreStakeForNextPeriod(100, {
+              from: poolUsers[2],
+            }),
+            'Cannot add more funds to pool, because the max in pool is reached!'
+          )
+        }
       })
     })
 

@@ -536,7 +536,7 @@ contract JuriStakingPool is Ownable {
                     .add(_updateIterationCount);
             i++
         ) {
-            if (users.length > i) {
+            if (users.length > i.add(nextStakingRound.usersToAdd.length)) {
                 _handleSecondUpdateForUser(users[i]);
             }
 
