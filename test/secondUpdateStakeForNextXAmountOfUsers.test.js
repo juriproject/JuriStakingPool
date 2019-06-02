@@ -583,7 +583,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
               complianceData,
               pool,
               poolUsers,
-              updateIterationCount: defaultUpdateIterationCount,
+              updateIterationCount,
             })
 
             await runFullFirstUpdate({ pool, poolUsers, updateIterationCount })
@@ -644,7 +644,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
               complianceData,
               pool,
               poolUsers,
-              updateIterationCount: defaultUpdateIterationCount,
+              updateIterationCount,
             })
             await runFullFirstUpdate({ pool, poolUsers, updateIterationCount })
 
@@ -770,18 +770,6 @@ const itRunsSecondUpdateCorrectly = async addresses => {
             )
           })
         })
-
-        describe('when users are compliant', async () => {
-          beforeEach(async () => {
-            complianceData = new Array(poolUsers.length).fill(true)
-            await runFullComplianceDataAddition({
-              complianceData,
-              pool,
-              poolUsers,
-              updateIterationCount: defaultUpdateIterationCount,
-            })
-          })
-        })
       }
 
       describe('when using a small updateIterationCount', async () => {
@@ -792,7 +780,7 @@ const itRunsSecondUpdateCorrectly = async addresses => {
       })
 
       describe('when using a high updateIterationCount', async () => {
-        const updateIterationCount = new BN(1000)
+        const updateIterationCount = defaultUpdateIterationCount
 
         itRunsSecondUpdateCorrectlyWithIterationCount(updateIterationCount)
       })

@@ -6,7 +6,12 @@ const {
   defaultUpdateIterationCount,
   getDefaultJuriAddress,
 } = require('./defaults')
-const { deployJuriStakingPool, initialPoolSetup, Stages } = require('./helpers')
+const {
+  deployJuriStakingPool,
+  initialPoolSetup,
+  runFullComplianceDataAddition,
+  Stages,
+} = require('./helpers')
 
 const itAddsComplianceDataCorrectly = async addresses => {
   describe('when adding compliance data', async () => {
@@ -98,10 +103,12 @@ const itAddsComplianceDataCorrectly = async addresses => {
 
       describe('when not called in stage AWAITING_COMPLIANCE_DATA', async () => {
         beforeEach(async () => {
-          await pool.addWasCompliantDataForUsers(
-            defaultUpdateIterationCount,
-            complianceData
-          )
+          await runFullComplianceDataAddition({
+            complianceData,
+            pool,
+            poolUsers,
+            updateIterationCount: defaultUpdateIterationCount,
+          })
         })
 
         it('reverts the transacion', async () => {
@@ -110,7 +117,7 @@ const itAddsComplianceDataCorrectly = async addresses => {
               defaultUpdateIterationCount,
               complianceData
             ),
-            "Function cannot be called at this time!"
+            'Function cannot be called at this time!'
           )
         })
       })
@@ -163,10 +170,12 @@ const itAddsComplianceDataCorrectly = async addresses => {
         beforeEach(async () => {
           complianceDataIndex = await pool.complianceDataIndex()
 
-          await pool.addWasCompliantDataForUsers(
-            defaultUpdateIterationCount,
-            complianceData
-          )
+          await runFullComplianceDataAddition({
+            complianceData,
+            pool,
+            poolUsers,
+            updateIterationCount: defaultUpdateIterationCount,
+          })
         })
 
         it('increments complianceDataIndex', async () => {

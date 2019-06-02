@@ -1,7 +1,12 @@
 const { expect } = require('chai')
 const { BN, shouldFail, time } = require('openzeppelin-test-helpers')
 
-const { deployJuriStakingPool, initialPoolSetup } = require('./helpers')
+const {
+  deployJuriStakingPool,
+  initialPoolSetup,
+  runFullComplianceDataAddition,
+} = require('./helpers')
+
 const {
   defaultMinStakePerUser,
   defaultMaxNonCompliantPenaltyPercentage,
@@ -108,10 +113,12 @@ const itWithdrawsStakeCorrectly = async addresses => {
     describe('when called in incorrect stage', async () => {
       beforeEach(async () => {
         await time.increase(defaultPeriodLength)
-        await pool.addWasCompliantDataForUsers(
-          defaultUpdateIterationCount,
-          new Array(poolUsers.length).fill(true)
-        )
+        await runFullComplianceDataAddition({
+          complianceData: new Array(poolUsers.length).fill(true),
+          pool,
+          poolUsers,
+          updateIterationCount: defaultUpdateIterationCount,
+        })
       })
 
       it('reverts the transacion', async () => {

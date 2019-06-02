@@ -527,15 +527,18 @@ contract JuriStakingPool is Ownable {
             currentStakingRound.useMaxNonCompliancy = _computeUseMaxNonCompliancy();
         }
 
+        uint256 removedUserCount = 0;
+
         for (
-            uint256 i = currentStakingRound.updateStaking2Index;
-            (
-                i.add(nextStakingRound.usersToAdd.length) < users.length
-                || i < nextStakingRound.usersToAdd.length)
-                && i < currentStakingRound.updateStaking2Index
-                    .add(_updateIterationCount);
-            i++
+            uint256 iteration = currentStakingRound.updateStaking2Index;
+            (iteration.sub(removedUserCount) < users.length
+                || iteration.sub(removedUserCount) < nextStakingRound.usersToAdd.length
+            ) && iteration < currentStakingRound.updateStaking2Index
+                .add(_updateIterationCount);
+            iteration++
         ) {
+            uint256 i = iteration.sub(removedUserCount);
+
             if (users.length > i.add(nextStakingRound.usersToAdd.length)) {
                 _handleSecondUpdateForUser(users[i]);
             }
@@ -543,14 +546,15 @@ contract JuriStakingPool is Ownable {
             if (users.length > i && nextStakingRound.userIsLeaving[users[i]]) {
                 nextStakingRound.userIsLeaving[users[i]] = false;
                 _removeUserAtIndex(i);
-                i--; // adapt to decremented user array
+                removedUserCount++;
             } else if (nextStakingRound.usersToAdd.length > i) {
                 _addPendingUser(nextStakingRound.usersToAdd[i]);
             }
         }
 
         currentStakingRound.updateStaking2Index
-            = currentStakingRound.updateStaking2Index.add(_updateIterationCount);
+            = currentStakingRound.updateStaking2Index.add(_updateIterationCount)
+                .sub(removedUserCount);
 
         if (currentStakingRound.updateStaking2Index >= users.length &&
             currentStakingRound.updateStaking2Index >= nextStakingRound.usersToAdd.length

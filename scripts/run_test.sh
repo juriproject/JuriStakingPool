@@ -41,7 +41,7 @@ start_ganache() {
   if [ "$SOLIDITY_COVERAGE" = true ]; then
     npx ganache-cli-coverage --emitFreeLogs true --allowUnlimitedContractSize true --gasLimit 0xfffffffffff --port "$ganache_port" "${accounts[@]}" > /dev/null &
   else
-    npx ganache-cli --gasLimit 0xfffffffffff --port "$ganache_port" --accounts 80 > /dev/null &
+    npx ganache-cli --gasLimit 0xfffffffffff --port "$ganache_port" --accounts 70 > /dev/null &
   fi
 
   ganache_pid=$!

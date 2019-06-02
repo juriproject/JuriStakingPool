@@ -466,16 +466,20 @@ const itRunsFirstUpdateCorrectly = async addresses => {
 
           pool = juriStakingPool
           complianceData = new Array(poolUsers.length).fill(true)
-          await pool.addWasCompliantDataForUsers(
-            defaultUpdateIterationCount,
-            complianceData
-          )
+          await runFullComplianceDataAddition({
+            complianceData,
+            pool,
+            poolUsers,
+            updateIterationCount: defaultUpdateIterationCount,
+          })
         })
 
         it('computes the new stakes correctly', async () => {
-          await pool.firstUpdateStakeForNextXAmountOfUsers(
-            defaultUpdateIterationCount
-          )
+          await runFullFirstUpdate({
+            pool,
+            poolUsers,
+            updateIterationCount: defaultUpdateIterationCount,
+          })
 
           for (let i = 0; i < poolUsers.length; i++) {
             const currentStakeAfter = await pool.getStakeForUserInCurrentPeriod(
@@ -517,16 +521,20 @@ const itRunsFirstUpdateCorrectly = async addresses => {
 
           pool = juriStakingPool
           complianceData = new Array(poolUsers.length).fill(true)
-          await pool.addWasCompliantDataForUsers(
-            defaultUpdateIterationCount,
-            complianceData
-          )
+          await runFullComplianceDataAddition({
+            complianceData,
+            pool,
+            poolUsers,
+            updateIterationCount: defaultUpdateIterationCount,
+          })
         })
 
         it('computes the new stakes correctly', async () => {
-          await pool.firstUpdateStakeForNextXAmountOfUsers(
-            defaultUpdateIterationCount
-          )
+          await runFullFirstUpdate({
+            pool,
+            poolUsers,
+            updateIterationCount: defaultUpdateIterationCount,
+          })
 
           for (let i = 0; i < poolUsers.length; i++) {
             const currentStakeAfter = await pool.getStakeForUserInCurrentPeriod(

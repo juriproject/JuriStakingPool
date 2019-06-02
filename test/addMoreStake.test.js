@@ -1,7 +1,12 @@
 const { expect } = require('chai')
 const { BN, shouldFail, time } = require('openzeppelin-test-helpers')
 
-const { deployJuriStakingPool, initialPoolSetup } = require('./helpers')
+const {
+  deployJuriStakingPool,
+  initialPoolSetup,
+  runFullComplianceDataAddition,
+} = require('./helpers')
+
 const {
   defaultMaxStakePerUser,
   defaultPeriodLength,
@@ -123,10 +128,12 @@ const itAddsMoreStakeCorrectly = async ({ addresses, addressesToAdd }) => {
     describe('when called in incorrect stage', async () => {
       beforeEach(async () => {
         await time.increase(defaultPeriodLength)
-        await pool.addWasCompliantDataForUsers(
-          defaultUpdateIterationCount,
-          complianceData
-        )
+        await runFullComplianceDataAddition({
+          complianceData,
+          pool,
+          poolUsers,
+          updateIterationCount: defaultUpdateIterationCount,
+        })
       })
 
       it('reverts the transacion', async () => {

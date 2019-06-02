@@ -10,6 +10,7 @@ const {
   expectUserCountToBe,
   initialPoolSetup,
   runFullCompleteRound,
+  runFullComplianceDataAddition,
 } = require('./helpers')
 
 const itRemovesNewUsersCorrectly = async addresses => {
@@ -60,10 +61,12 @@ const itRemovesNewUsersCorrectly = async addresses => {
     describe('when called in incorrect stage', async () => {
       beforeEach(async () => {
         await time.increase(defaultPeriodLength)
-        await pool.addWasCompliantDataForUsers(
-          defaultUpdateIterationCount,
-          complianceData
-        )
+        await runFullComplianceDataAddition({
+          complianceData,
+          pool,
+          poolUsers,
+          updateIterationCount: defaultUpdateIterationCount,
+        })
       })
 
       it('reverts the transacion', async () => {
