@@ -13,6 +13,8 @@ function truffleConfig({
   optimizedEnabled = false,
   urlRinkeby = 'https://rinkeby.infura.io/',
   urlMainnet = 'https://mainnet.infura.io',
+  urlSkaleMain = 'http://134.209.56.46:1919',
+  urlSkaleSide = 'http://104.248.79.40:8057',
   urlDevelopment = 'localhost',
   portDevelopment = 8545,
 } = {}) {
@@ -26,7 +28,8 @@ function truffleConfig({
   console.log('')
 
   const gasPrice = gasPriceGWei * 1e9
-  const _getProvider = url => () => new HDWalletProvider({ mnemonic, url })
+  const _getProvider = (url, key) => () =>
+    new HDWalletProvider(key || mnemonic, url)
 
   return {
     networks: {
@@ -49,6 +52,16 @@ function truffleConfig({
         gas,
         gasPrice,
       },
+      skaleMain: {
+        provider: _getProvider(urlSkaleMain, process.env.KEY),
+        gasPrice: 0,
+        network_id: '*',
+      },
+      skaleSide: {
+        provider: _getProvider(urlSkaleSide, process.env.KEY),
+        gasPrice: 0,
+        network_id: '*',
+      },
     },
     solc: {
       optimizer: {
@@ -65,4 +78,5 @@ function truffleConfig({
 
 module.exports = truffleConfig({
   optimizedEnabled: true,
+  mnemonic: process.env.MNEMONIC,
 })
