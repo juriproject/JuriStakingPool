@@ -4,17 +4,17 @@ import "../lib/ERC20.sol";
 import "../lib/Ownable.sol";
 import "../lib/SafeMath.sol";
 
-contract JuriToken is ERC20 {
+contract JuriToken is ERC20, Ownable {
     using SafeMath for uint256;
 
-    JuriNetworkProxy proxy;
-    JuriTokenBonding bonding;
+    JuriNetworkProxy public proxy;
+    JuriBonding public bonding;
 
-    uint256 currentRoundIndex;
-    uint256 targetInflationChange;
-    uint256 targetBondingRate;
+    uint256 public currentRoundIndex;
+    uint256 public targetInflationChange;
+    uint256 public targetBondingRate;
 
-    mapping (uint256 => address => bool) haveRetrievedRewards;
+    mapping (uint256 => address => bool) public haveRetrievedRewards;
 
     function setTargetBondingRate(uint256 _targetBondingRate) public onlyOwner {
         targetBondingRate = _targetBondingRate;
@@ -53,7 +53,7 @@ contract JuriToken is ERC20 {
     }
 
     function _setInflation() private {
-        uint256 totalBonded = bonding.getTotalBonded();
+        uint256 totalBonded = bonding.totalBonded();
         uint256 currentBondingRate = totalBonded.div(totalSupply());
 
         if (currentBondingRate < targetBondingRate) {
