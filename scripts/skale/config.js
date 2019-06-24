@@ -15,10 +15,12 @@ const schainEndpointSide = 'http://104.248.79.40:8057'
 
 const getEndpoint = isMain => (isMain ? schainEndpointMain : schainEndpointSide)
 
-const getWeb3 = isMain =>
-  new Web3(new Web3.providers.HttpProvider(getEndpoint(isMain)))
+const getWeb3Provider = isMain =>
+  new Web3.providers.HttpProvider(getEndpoint(isMain))
 
-let privateKey = Buffer.from(process.env.KEY, 'hex')
-let account = '0x15ae150d7dC03d3B635EE90b85219dBFe071ED35'
+const getWeb3 = isMain => new Web3(getWeb3Provider(isMain))
 
-module.exports = { account, getWeb3, privateKey, Tx }
+const privateKey = Buffer.from(process.env.KEY, 'hex')
+const account = '0x15ae150d7dC03d3B635EE90b85219dBFe071ED35'
+
+module.exports = { account, getWeb3, getWeb3Provider, privateKey, Tx }

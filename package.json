@@ -7,11 +7,16 @@
         "compile": "npx truffle compile",
         "test": "bash scripts/run_test.sh",
         "skale:deposit": "node scripts/skale/depositAtSide.js",
-        "skale:exit": "node scripts/skale/exitToMain.js"
+        "skale:exit": "node scripts/skale/exitToMain.js",
+        "skale:store": "node scripts/skale/storeFile.js",
+        "skale:print": "node scripts/skale/printAllFiles.js",
+        "skale:get": "node scripts/skale/getFile.js",
+        "skale:delete": "node scripts/skale/deleteFile.js"
     },
     "author": "Markus Waas",
     "license": "MIT",
     "devDependencies": {
+        "@skalenetwork/filestorage.js": "^0.2.2",
         "babel-eslint": "^10.0.1",
         "bn.js": "^4.11.8",
         "chai": "^4.2.0",
