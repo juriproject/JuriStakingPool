@@ -51,7 +51,7 @@ contract JuriBonding is Ownable {
 
     function getBondedStakeOfNode(
         address _node
-    ) public returns (uint256) {
+    ) public view returns (uint256) {
         return bondedStakes[_node];
     }
 }

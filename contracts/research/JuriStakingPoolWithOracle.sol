@@ -24,7 +24,7 @@ contract JuriStakingPoolWithOracle is JuriStakingPool {
             "Can only add new data after end of periodLength!"
         );
 
-        require(proxy.roundIndex >= currentStakingRound.index);
+        require(proxy.roundIndex() >= currentStakingRound.roundIndex);
 
         for (
             uint256 i = currentStakingRound.addComplianceDataIndex;
@@ -35,7 +35,7 @@ contract JuriStakingPoolWithOracle is JuriStakingPool {
         ) {
             address user = users[i];
             bool wasCompliant = proxy.userComplianceData(
-                currentStakingRound.index,
+                currentStakingRound.roundIndex,
                 user
             ) >= 0;
 

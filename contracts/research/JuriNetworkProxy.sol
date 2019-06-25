@@ -3,27 +3,48 @@ pragma solidity 0.5.8;
 import "../lib/IERC20.sol";
 import "../lib/Ownable.sol";
 import "../lib/SafeMath.sol";
+import "./MaxHeapLibrary.sol";
+import "./JuriBonding.sol";
 
 contract JuriNetworkProxy is Ownable {
     using SafeMath for uint256;
+    using MaxHeapLibrary for MaxHeapLibrary.heapStruct;
+
+    struct MaxHeapEntry {
+        address node;
+        uint256 verifierHash;
+    }
 
     JuriBonding public bonding;
 
-    mapping (address => bool) public isRegisteredJuriStakingPool;
-    mapping (uint256 => address => int256) public userComplianceData;
-    mapping (address => uint256 => address => bytes32) public userComplianceDataCommitments;
-    mapping (uint256 => address => bytes32) public userWorkoutSignatures;
+    address[] public registeredJuriStakingPools;
 
-    mapping (uint256 => address => uint256) public nodeActivityCount;
+    mapping (address => bool) public isRegisteredJuriStakingPool;
+    mapping (uint256 => mapping (address => int256)) public userComplianceData;
+    mapping (address => mapping(uint256 => mapping (address => bytes32))) public userComplianceDataCommitments;
+    mapping (uint256 => mapping(address => bytes32)) public userWorkoutSignatures;
+    mapping (uint256 => mapping(address => string)) public userHeartRateDataStoragePaths;
+    mapping (uint256 => mapping(address => MaxHeapLibrary.heapStruct)) verifierHashesMaxHeaps;
+
+
+    mapping (uint256 => mapping(address => mapping (address => bool))) hasDissented;
+    mapping (uint256 => mapping(address => bool)) dissented;
+    mapping (uint256 => mapping(address => mapping (address => bool))) wasAssignedToUser;
+
+    mapping (uint256 => mapping(address => uint256)) public nodeActivityCount;
     mapping (uint256 => uint256) public totalActivityCount;
+
+    address[] public dissentedUsers;
 
     uint256 public roundIndex = 0;
     uint256 public startTime = now;
     uint256 public periodLength = 1 weeks;
-    uint256 public nodeVerifierCount = k;
+    uint256 public nodeVerifierCount = 12; // TODO = k
 
     function moveToNextRound() public {
         require(now > startTime.add(roundIndex.mul(periodLength)));
+
+        dissentedUsers = new address[](0);
         
         roundIndex++;
     }
@@ -32,27 +53,31 @@ contract JuriNetworkProxy is Ownable {
         isRegisteredJuriStakingPool[_poolAddress] = true;
     }
 
-    function addWorkoutSignatureForPoolUser(
-        address _poolAddress,
+    function addHeartRateDateForPoolUser(
         address _user,
-        bytes32 _userWorkoutSignature
+        bytes32 _userWorkoutSignature,
+        string memory _heartRateDataStoragePath
     ) public {
-        // TODO verify _signature, HOW ?
+        // TODO verify signature, HOW ?
+        // TODO verify storage path
 
         userWorkoutSignatures[roundIndex][_user] = _userWorkoutSignature;
+        userHeartRateDataStoragePaths[roundIndex][_user] = _heartRateDataStoragePath;
     }
 
     function addWasCompliantDataCommitmentsForUsers(
         address[] memory _users,
-        bytes32[] memory _wasCompliantDataCommitments
+        bytes32[] memory _wasCompliantDataCommitments,
+        uint256[] memory _proofIndices
     ) public {
         for (uint256 i = 0; i < _users.length; i++) {
             address user = _users[i];
-            bool wasCompliantCommitment = _wasCompliantDataCommitments[i];
+            bytes32 wasCompliantCommitment = _wasCompliantDataCommitments[i];
+            uint256 proofIndex = _proofIndices[i];
 
-            if (!dissented[roundIndex][_user]) {
+            if (!dissented[roundIndex][user]) {
                 require(
-                    _verifyValidComplianceAddition(user, msg.sender),
+                    _verifyValidComplianceAddition(user, msg.sender, proofIndex),
                     'Node not verified to add data!'
                 );
             }
@@ -75,7 +100,7 @@ contract JuriNetworkProxy is Ownable {
             bytes32 commitment = userComplianceDataCommitments[msg.sender][roundIndex][user];
             bytes32 randomNonce = _randomNonces[i];
 
-            require(keccak256(wasCompliant, randomNonce) == commitment);
+            require(keccak256(abi.encodePacked(wasCompliant, randomNonce)) == commitment);
     
             int256 currentCompliance = userComplianceData[roundIndex][user];
             
@@ -85,35 +110,37 @@ contract JuriNetworkProxy is Ownable {
         }
     }
 
-    function dissentToAcceptedAnswer(address _user) {
-        // verify msg.sender is allowed to dissent
+    function dissentToAcceptedAnswer(address _user) public {
+        require(
+            wasAssignedToUser[roundIndex][_user][msg.sender],
+            'You were not assigned to the given user!'
+        );
 
-        hasDissented[msg.sender][roundIndex][_user] = true;
+        hasDissented[roundIndex][msg.sender][_user] = true;
         dissented[roundIndex][_user] = true;
-
-        // no reading nodes will need to request the user heart rate data
-        // and all of them need to run the calculations
+        dissentedUsers.push(_user);
     }
 
     function _increaseActivityCountForNode(
         address _juriNode,
         uint256 _activityCount
-    ) {
-        nodeActivityCount[roundIndex][msg.sender].add(_activityCount);
+    ) private view {
+        nodeActivityCount[roundIndex][_juriNode].add(_activityCount);
         totalActivityCount[roundIndex].add(_activityCount);
     }
 
-    function _decrementActivityCountForNode(address _juriNode) {
-        nodeActivityCount[roundIndex][msg.sender]
-            = nodeActivityCount[roundIndex][msg.sender].sub(1);
+    function _decrementActivityCountForNode(address _juriNode) private {
+        nodeActivityCount[roundIndex][_juriNode]
+            = nodeActivityCount[roundIndex][_juriNode].sub(1);
 
         totalActivityCount[roundIndex] = totalActivityCount[roundIndex].sub(1);
     }
 
     function _verifyValidComplianceAddition(
         address _user,
-        address _juriSenderNode
-    ) returns (bool) {
+        address _juriSenderNode,
+        uint256 _proofIndex // for second approach
+    ) private returns (bool) {
 
         // two ideas so far:
 
@@ -123,7 +150,7 @@ contract JuriNetworkProxy is Ownable {
         //
         // Issue: How to get that mapping? Might be not so straight-forward.
 
-        uint256 totalStaked = bonding.getTotalBonded();
+        /* uint256 totalStaked = bonding.getTotalBonded();
         bytes32 userWorkoutSignature = userWorkoutSignatures[roundIndex][_user];
         bytes32 hashedSignature = userWorkoutSignature;
 
@@ -139,7 +166,7 @@ contract JuriNetworkProxy is Ownable {
             }
         }
 
-        return false;
+        return false; */
 
         // 2) Compute keccak256(userWorkoutSignature, _juriSenderNode)
         // and allow the nodeVerifierCount greatest hashes to add the data.
@@ -150,22 +177,53 @@ contract JuriNetworkProxy is Ownable {
         bytes32 userWorkoutSignature = userWorkoutSignatures[roundIndex][_user];
         uint256 bondedStake = bonding.getBondedStakeOfNode(_juriSenderNode);
 
-        // TODO pass i as parameter
-        require(i <= bondedStake);
+        require(_proofIndex <= bondedStake.div(1e18));
 
         uint256 verifierHash
-            = uint256(keccak256(userWorkoutSignature, _juriSenderNode, i));
+            = uint256(keccak256(abi.encodePacked(userWorkoutSignature, _juriSenderNode, _proofIndex)));
 
-        if (_getAddedHashesForUser.length < nodeVerifierCount
+        MaxHeapLibrary.heapStruct storage verifierHashesMaxHeap = verifierHashesMaxHeaps[roundIndex][_user];
+
+        if (verifierHashesMaxHeap.getLength() < nodeVerifierCount
             || verifierHash < currentHighestHash) {
-            _addNewVerifierHashForUser(_user, verifierHash);
+            address removedNode
+                = _addNewVerifierHashForUser(_juriSenderNode, _user); //, verifierHash);
 
-            // TODO _decrementActivityCountForNode(replacedNode);
+            _decrementActivityCountForNode(removedNode);
 
             return true;
         }
 
         return false;
     }
-    
+
+    function _getCurrentHighestHashForUser(address _user) private view returns (uint256) {
+        MaxHeapLibrary.heapStruct storage verifierHashesMaxHeap = verifierHashesMaxHeaps[roundIndex][_user];
+
+        return verifierHashesMaxHeap.getMax();
+    }
+
+    function _addNewVerifierHashForUser(
+        address _juriSenderNode,
+        address _user
+        // uint256 _verifierHash
+    ) private returns (address) {
+
+        // TODO enable MaxHeapEntry for MaxHeapLibrary
+
+        /*
+        MaxHeapLibrary.heapStruct storage verifierHashesMaxHeap = verifierHashesMaxHeaps[roundIndex][_user];
+        MaxHeapEntry memory entry = MaxHeapEntry(_juriSenderNode, _verifierHash);
+
+        MaxHeapEntry memory removedEntry = verifierHashesMaxHeap.insert(entry);
+        address removedNode = removedEntry.juriNode;
+        */
+
+        address removedNode = address(0);
+        
+        wasAssignedToUser[roundIndex][_user][removedNode] = false;
+        wasAssignedToUser[roundIndex][_user][_juriSenderNode] = true;
+
+        return removedNode;
+    }
 }
