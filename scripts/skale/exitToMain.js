@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 
-const { account, getWeb3, privateKey, Tx } = require('./config')
-
-const schainJson = require('../../contracts/schain_proxy.json')
+const { account, getWeb3, privateKey, schainJson, Tx } = require('./config')
 
 const exec = async () => {
   const web3 = getWeb3(false)

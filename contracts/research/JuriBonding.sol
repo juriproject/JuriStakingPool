@@ -9,8 +9,11 @@ contract JuriBonding is Ownable {
 
     IERC20 public token;
     uint256 public totalBonded;
+    uint256 public totalNodesCount;
 
     mapping (address => uint256) bondedStakes;
+
+    uint256 public minStakePerNode = 1000e18; // TODO use
 
     function slashStakeForNotRevealing() public {
         // verify node did not reveal by looking at proxy
@@ -24,7 +27,7 @@ contract JuriBonding is Ownable {
     }
 
     function slashStakeForIncorrectResult() public {
-        // verify node did give an incorrect result by looking at proxy
+        // verify node gave an incorrect result by looking at proxy
         // re-distribute slashed stake
     }
 
@@ -37,16 +40,25 @@ contract JuriBonding is Ownable {
 
     function unbondStake(uint256 _amount) public {
         // TODO delay
+        require(_amount > 0);
         require(bondedStakes[msg.sender] >= _amount);
         require(token.transferFrom(address(this), msg.sender, _amount));
 
         bondedStakes[msg.sender] = bondedStakes[msg.sender].sub(_amount);
+        totalBonded = totalBonded.sub(_amount);
+
+        if (bondedStakes[msg.sender] == 0) {
+            totalNodesCount--;
+        }
     }
 
     function bondStake(uint256 _amount) public {
         require(token.transferFrom(msg.sender, address(this), _amount));
 
         bondedStakes[msg.sender] = bondedStakes[msg.sender].add(_amount);
+        totalBonded = totalBonded.add(_amount);
+
+        totalNodesCount++;
     }
 
     function getBondedStakeOfNode(

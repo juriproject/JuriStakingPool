@@ -1,7 +1,11 @@
-const { account, getWeb3, privateKey, Tx } = require('./config')
-
-const privateTestnetJson = require('../../contracts/private_skale_testnet_proxy.json')
-const schainID = 'UPPC7EI4'
+const {
+  account,
+  getWeb3,
+  privateKey,
+  privateTestnetJson,
+  schainID,
+  Tx,
+} = require('./config')
 
 const exec = async () => {
   const depositBoxAddress = privateTestnetJson.deposit_box_address

@@ -8,10 +8,14 @@
         "test": "bash scripts/run_test.sh",
         "skale:deposit": "node scripts/skale/depositAtSide.js",
         "skale:exit": "node scripts/skale/exitToMain.js",
+        "skale:getEth": "node scripts/skale/getMyEth.js",
         "skale:store": "node scripts/skale/storeFile.js",
         "skale:print": "node scripts/skale/printAllFiles.js",
         "skale:get": "node scripts/skale/getFile.js",
-        "skale:delete": "node scripts/skale/deleteFile.js"
+        "skale:delete": "node scripts/skale/deleteFile.js",
+        "skale:depositERC20": "node scripts/skale/depositERC20AtSide.js",
+        "skale:exitERC20": "node scripts/skale/exitERC20ToMain.js",
+        "skale:printERC20": "node scripts/skale/printBalances.js"
     },
     "author": "Markus Waas",
     "license": "MIT",
@@ -34,5 +38,6 @@
         "stats-lite": "^2.2.0",
         "truffle": "^5.0.20",
         "truffle-hdwallet-provider": "^1.0.10"
-    }
+    },
+    "dependencies": {}
 }

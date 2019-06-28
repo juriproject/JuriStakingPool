@@ -39,12 +39,13 @@ contract JuriNetworkProxy is Ownable {
     uint256 public roundIndex = 0;
     uint256 public startTime = now;
     uint256 public periodLength = 1 weeks;
-    uint256 public nodeVerifierCount = 12; // TODO = k
+    uint256 public nodeVerifierCount = 1;
 
     function moveToNextRound() public {
         require(now > startTime.add(roundIndex.mul(periodLength)));
 
         dissentedUsers = new address[](0);
+        nodeVerifierCount = bonding.totalNodesCount().div(3);
         
         roundIndex++;
     }

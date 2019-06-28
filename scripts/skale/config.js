@@ -23,4 +23,17 @@ const getWeb3 = isMain => new Web3(getWeb3Provider(isMain))
 const privateKey = Buffer.from(process.env.KEY, 'hex')
 const account = '0x15ae150d7dC03d3B635EE90b85219dBFe071ED35'
 
-module.exports = { account, getWeb3, getWeb3Provider, privateKey, Tx }
+const privateTestnetJson = require('../../contracts/private_skale_testnet_proxy.json')
+const schainJson = require('../../contracts/schain_proxy.json')
+const schainID = 'UPPC7EI4'
+
+module.exports = {
+  account,
+  getWeb3,
+  getWeb3Provider,
+  privateKey,
+  privateTestnetJson,
+  schainID,
+  schainJson,
+  Tx,
+}
