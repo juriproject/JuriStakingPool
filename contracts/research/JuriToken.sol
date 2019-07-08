@@ -1,4 +1,4 @@
-pragma solidity 0.5.8;
+pragma solidity 0.5.10;
 
 import "../lib/ERC20.sol";
 import "../lib/Ownable.sol";
@@ -44,7 +44,7 @@ contract JuriToken is ERC20, Ownable {
         currentMintedTokens = 0;
     }
 
-    function retrieveRoundReward() public {
+    function retrieveRoundInflationRewards() public {
         require(!haveRetrievedRewards[currentRoundIndex][msg.sender]);
 
         uint256 nodeActivityCount = proxy.nodeActivityCount(currentRoundIndex, msg.sender);

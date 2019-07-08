@@ -1,4 +1,4 @@
-pragma solidity 0.5.8;
+pragma solidity 0.5.10;
 
 import "../lib/IERC20.sol";
 import "../lib/Ownable.sol";
@@ -86,7 +86,6 @@ contract JuriNetworkProxy is Ownable {
     mapping (uint256 => mapping(address => string)) public userHeartRateDataStoragePaths;
     mapping (uint256 => mapping(address => MaxHeapLibrary.heapStruct)) verifierHashesMaxHeaps;
 
-
     mapping (uint256 => mapping(address => mapping (address => bool))) public hasDissented;
     mapping (uint256 => mapping(address => bool)) public dissented;
     mapping (uint256 => mapping(address => mapping (address => bool))) public wasAssignedToUser;
@@ -104,12 +103,13 @@ contract JuriNetworkProxy is Ownable {
     uint256 public nodeVerifierCount = 1;
 
     function moveToNextRound() public checkIfNextStage atStage(Stages.MOVE_TO_NEXT_ROUND) {
+        roundIndex++;
+    
         dissentedUsers = new address[](0);
-        nodeVerifierCount = bonding.totalNodesCount().div(3);
+        nodeVerifierCount = bonding.totalNodesCount(roundIndex).div(3);
         totalJuriFees = token.balanceOf(address(this));
 
         _moveToNextStage();
-        roundIndex++;
     }
 
     function registerJuriStakingPool(address _poolAddress) public {
@@ -132,53 +132,48 @@ contract JuriNetworkProxy is Ownable {
         address[] memory _users,
         bytes32[] memory _wasCompliantDataCommitments,
         uint256[] memory _proofIndices
-    ) public checkIfNextStage atStage(Stages.NODES_ADDING_RESULT_COMMITMENTS  /*|| Stages.DISSENTS_NODES_ADDING_RESULT_COMMITMENTS*/) {
-        for (uint256 i = 0; i < _users.length; i++) {
-            address user = _users[i];
-            bytes32 wasCompliantCommitment = _wasCompliantDataCommitments[i];
-            uint256 proofIndex = _proofIndices[i];
+    ) public checkIfNextStage atStage(Stages.NODES_ADDING_RESULT_COMMITMENTS) {
+        _addWasCompliantDataCommitmentsForUsers(
+            _users,
+            _wasCompliantDataCommitments,
+            _proofIndices
+        );
+    }
 
-            if (!dissented[roundIndex][user]) {
-                require(
-                    _verifyValidComplianceAddition(user, msg.sender, proofIndex),
-                    'Node not verified to add data!'
-                );
-            }
-
-            userComplianceDataCommitments[msg.sender][roundIndex][user]
-                = wasCompliantCommitment;
-        }
-
-        _increaseActivityCountForNode(msg.sender, _users.length);
+    function addDissentWasCompliantDataCommitmentsForUsers(
+        address[] memory _users,
+        bytes32[] memory _wasCompliantDataCommitments,
+        uint256[] memory _proofIndices
+    ) public checkIfNextStage atStage(Stages.DISSENTS_NODES_ADDING_RESULT_COMMITMENTS) {
+        _addWasCompliantDataCommitmentsForUsers(
+            _users,
+            _wasCompliantDataCommitments,
+            _proofIndices
+        );
     }
 
     function addWasCompliantDataForUsers(
         address[] memory _users,
         bool[] memory _wasCompliantData,
         bytes32[] memory _randomNonces
-    ) public checkIfNextStage atStage(Stages.NODES_ADDING_RESULT_REVEALS /* || Stages.DISSENTS_NODES_ADDING_RESULT_REVEALS */) {
-        require(!hasRevealed[msg.sender][roundIndex]);
+    ) public checkIfNextStage atStage(Stages.NODES_ADDING_RESULT_REVEALS) {
+        _addWasCompliantDataForUsers(
+            _users,
+            _wasCompliantData,
+            _randomNonces
+        );
+    }
 
-        // TODO require array lengths
-
-        for (uint256 i = 0; i < _users.length; i++) {
-            address user = _users[i];
-            bool wasCompliant = _wasCompliantData[i];
-            bytes32 commitment = userComplianceDataCommitments[msg.sender][roundIndex][user];
-            bytes32 randomNonce = _randomNonces[i];
-
-            require(keccak256(abi.encodePacked(wasCompliant, randomNonce)) == commitment);
-    
-            givenNodeResults[msg.sender][roundIndex][user] = wasCompliant;
-
-            int256 currentCompliance = userComplianceData[roundIndex][user];
-            
-            userComplianceData[roundIndex][user] = wasCompliant
-                ? currentCompliance + 1
-                : currentCompliance - 1;
-        }
-
-        hasRevealed[msg.sender][roundIndex] = true;
+    function addDissentWasCompliantDataForUsers(
+        address[] memory _users,
+        bool[] memory _wasCompliantData,
+        bytes32[] memory _randomNonces
+    ) public checkIfNextStage atStage(Stages.DISSENTS_NODES_ADDING_RESULT_REVEALS) {
+        _addWasCompliantDataForUsers(
+            _users,
+            _wasCompliantData,
+            _randomNonces
+        );
     }
 
     function dissentToAcceptedAnswer(address _user)
@@ -191,11 +186,14 @@ contract JuriNetworkProxy is Ownable {
             'You were not assigned to the given user!'
         );
 
+        require(!dissented[roundIndex][_user]);
+
         userComplianceDataBeforeDissents[roundIndex][_user]
             = userComplianceData[roundIndex][_user];
         hasDissented[roundIndex][msg.sender][_user] = true;
         dissented[roundIndex][_user] = true;
-        dissentedUsers.push(_user); // TODO avoid duplicates
+
+        dissentedUsers.push(_user);
     }
 
     function _increaseActivityCountForNode(
@@ -235,7 +233,7 @@ contract JuriNetworkProxy is Ownable {
         lastStageUpdate = now;
     }
 
-    function retrieveRewardTokens() public checkIfNextStage atStage(Stages.USER_ADDING_HEART_RATE_DATA) {
+    function retrieveRoundJuriFees() public checkIfNextStage atStage(Stages.USER_ADDING_HEART_RATE_DATA) {
         require(!haveRetrievedRewards[roundIndex][msg.sender]);
 
         uint256 activityCount = nodeActivityCount[roundIndex][msg.sender];
@@ -246,6 +244,60 @@ contract JuriNetworkProxy is Ownable {
 
         haveRetrievedRewards[roundIndex][msg.sender] = true;
         token.transfer(msg.sender, tokenAmount);
+    }
+
+    function _addWasCompliantDataCommitmentsForUsers(
+        address[] memory _users,
+        bytes32[] memory _wasCompliantDataCommitments,
+        uint256[] memory _proofIndices
+    ) private {
+        for (uint256 i = 0; i < _users.length; i++) {
+            address user = _users[i];
+            bytes32 wasCompliantCommitment = _wasCompliantDataCommitments[i];
+            uint256 proofIndex = _proofIndices[i];
+
+            if (!dissented[roundIndex][user]) {
+                require(
+                    _verifyValidComplianceAddition(user, msg.sender, proofIndex),
+                    'Node not verified to add data!'
+                );
+            }
+
+            userComplianceDataCommitments[msg.sender][roundIndex][user]
+                = wasCompliantCommitment;
+        }
+
+        _increaseActivityCountForNode(msg.sender, _users.length);
+    }
+
+    function _addWasCompliantDataForUsers(
+        address[] memory _users,
+        bool[] memory _wasCompliantData,
+        bytes32[] memory _randomNonces
+    ) private {
+        require(!hasRevealed[msg.sender][roundIndex]);
+
+        require(_users.length == _wasCompliantData.length);
+        require(_users.length == _randomNonces.length);
+
+        for (uint256 i = 0; i < _users.length; i++) {
+            address user = _users[i];
+            bool wasCompliant = _wasCompliantData[i];
+            bytes32 commitment = userComplianceDataCommitments[msg.sender][roundIndex][user];
+            bytes32 randomNonce = _randomNonces[i];
+
+            require(keccak256(abi.encodePacked(wasCompliant, randomNonce)) == commitment);
+    
+            givenNodeResults[msg.sender][roundIndex][user] = wasCompliant;
+
+            int256 currentCompliance = userComplianceData[roundIndex][user];
+            
+            userComplianceData[roundIndex][user] = wasCompliant
+                ? currentCompliance + 1
+                : currentCompliance - 1;
+        }
+
+        hasRevealed[msg.sender][roundIndex] = true;
     }
 
     function _verifyValidComplianceAddition(

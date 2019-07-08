@@ -1,6 +1,11 @@
 const each = require('async/each')
 const map = require('async/map')
 
+let allNodes
+
+const fetchAllNodes = () =>
+  juriBondingContract.methods.getAllStakingNodes().call()
+
 const downloadHeartRateData = async user => {
   const storagePath = await juriNetworkProxyContract.methods
     .userHeartRateDataStoragePaths(roundIndex, user)
@@ -20,11 +25,10 @@ const retrieveAssignedUsers = async () => {
     new web3.eth.Contract(poolAbi, poolAddress).methods.poolUsers().call()
   )
 
-  // TODO remove duplicates
-
+  const uniqUsers = [...new Set(users)]
   const assignedUsers = []
 
-  await each(users, async user => {
+  await each(uniqUsers, async user => {
     const userWorkoutSignature = await juriNetworkProxyContract.methods
       .userWorkoutSignatures(roundIndex, user)
       .call()
@@ -50,14 +54,14 @@ const retrieveAssignedUsers = async () => {
   return assignedUsers
 }
 
-const sendCommitments = async assignedUsers => {
+const sendCommitments = async ({ users, isDissent }) => {
   const userAddresses = []
   const wasCompliantData = []
   const wasCompliantDataCommitments = []
   const proofIndices = []
   const randomNumbers = []
 
-  await each(assignedUsers, async ({ address, lowestIndex }) => {
+  await each(users, async ({ address, lowestIndex }) => {
     const heartRateData = await downloadHeartRateData(address)
     const wasCompliant = verifyHeartRateData(heartRateData)
     const randomNumber = crypto.randomBytes(32).toString()
@@ -70,26 +74,35 @@ const sendCommitments = async assignedUsers => {
     randomNumbers.push(randomNumber)
   })
 
-  await juriNetworkProxyContract.methods
-    .addWasCompliantDataCommitmentsForUsers(
-      userAddresses,
-      wasCompliantDataCommitments,
-      proofIndices
-    )
-    .send()
+  const addMethod = isDissent
+    ? 'addDissentWasCompliantDataCommitmentsForUsers'
+    : 'addWasCompliantDataCommitmentsForUsers'
+
+  await juriNetworkProxyContract.methods[addMethod](
+    userAddresses,
+    wasCompliantDataCommitments,
+    proofIndices
+  ).send()
 
   return { randomNumbers, wasCompliantData }
 }
 
 const sendReveals = async ({
-  assignedUsers,
+  users,
   randomNumbers,
   wasCompliantData,
+  isDissent,
 }) => {
-  const userAddresses = assignedUsers.map(user => user.address)
-  await juriNetworkProxyContract.methods
-    .addWasCompliantDataForUsers(userAddresses, wasCompliantData, randomNumbers)
-    .send()
+  const userAddresses = users.map(user => user.address)
+  const addMethod = isDissent
+    ? 'addDissentWasCompliantDataForUsers'
+    : 'addWasCompliantDataForUsers'
+
+  await juriNetworkProxyContract.methods[addMethod](
+    userAddresses,
+    wasCompliantData,
+    randomNumbers
+  ).send()
 }
 
 const checkForInvalidAnswers = async ({ assignedUsers, wasCompliantData }) => {
@@ -247,8 +260,10 @@ const fetchStageTimes = async () => {
   return stageTimes
 }
 
-const retrieveRoundReward = () =>
-  juriTokenContract.methods.retrieveRoundReward().send()
+const retrieveRewards = async () => {
+  await juriTokenContract.methods.retrieveRoundInflationRewards().send()
+  await juriNetworkProxyContract.methods.retrieveRoundJuriFees().send()
+}
 
 // Stages:
 
@@ -272,17 +287,25 @@ const runRound = async () => {
     timeForSlashingStage,
   ] = await fetchStageTimes()
 
+  allNodes = await fetchAllNodes()
+
   // STAGE 2
   const assignedUsers = await retrieveAssignedUsers()
 
-  const { randomNumbers, wasCompliantData } = await sendCommitments(
-    assignedUsers
-  )
+  const { randomNumbers, wasCompliantData } = await sendCommitments({
+    users: assignedUsers,
+    isDissent: false,
+  })
 
   await sleep(timeForCommitmentStage)
 
   // STAGE 3
-  await sendReveals({ assignedUsers, randomNumbers, wasCompliantData })
+  await sendReveals({
+    assignedUsers,
+    randomNumbers,
+    wasCompliantData,
+    isDissent: false,
+  })
   await sleep(timeForRevealStage)
 
   // STAGE 4
@@ -294,17 +317,23 @@ const runRound = async () => {
 
   if (invalidAnswers.length > 0) {
     // STAGE 5.1
-    const { randomNumbers, wasCompliantData } = await sendCommitments(
-      dissentedUsers
-    )
+    const { randomNumbers, wasCompliantData } = await sendCommitments({
+      users: dissentedUsers,
+      isDissent: true,
+    })
     await sleep(timeForDissentCommitmentStage)
 
     // STAGE 5.2
-    await sendReveals({ assignedUsers, randomNumbers, wasCompliantData })
+    await sendReveals({
+      users: dissentedUsers,
+      randomNumbers,
+      wasCompliantData,
+      isDissent: true,
+    })
     await sleep(timeForDissentRevealStage)
   }
 
-  await retrieveRoundReward()
+  await retrieveRewards()
   await slashDishonestNodes(dissentedUsers)
 
   await sleep(timeForSlashingStage)

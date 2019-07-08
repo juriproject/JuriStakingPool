@@ -70,7 +70,7 @@ function truffleConfig({
     },
     compilers: {
       solc: {
-        version: '0.5.8',
+        version: '0.5.10',
       },
     },
   }
