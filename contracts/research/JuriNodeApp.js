@@ -1,8 +1,6 @@
 const each = require('async/each')
 const map = require('async/map')
 
-const FIVE_MINUTES = 1000 * 60 * 5
-
 const downloadHeartRateData = async user => {
   const storagePath = await juriNetworkProxyContract.methods
     .userHeartRateDataStoragePaths(roundIndex, user)
@@ -110,6 +108,148 @@ const checkForInvalidAnswers = async ({ assignedUsers, wasCompliantData }) => {
 const receiveDissentedUsers = () =>
   juriNetworkProxyContract.methods.dissentedUsers().call()
 
+const findAllNotRevealedNodes = async () => {
+  const notRevealedNodes = []
+
+  await each(allNodes, async node => {
+    await each(allUsers, async user => {
+      const value = await juriNetworkProxyContract.methods
+        .userComplianceDataCommitments(node, roundIndex, user)
+        .call()
+
+      if (
+        value != 0x0 &&
+        !juriNetworkProxyContract.methods.hasRevealed(user).call()
+      ) {
+        notRevealedNodes.push(node)
+      }
+    })
+  })
+
+  return notRevealedNodes
+}
+
+const findAllOfflineNodes = async () => {
+  const offlineNodes = []
+
+  await each(allNodes, async node => {
+    await each(dissentedUsers, async user => {
+      const userWasDissented = await juriNetworkProxyContract.methods
+        .dissented(roundIndex, user)
+        .call()
+
+      if (userWasDissented) {
+        const commitment = await juriNetworkProxyContract.methods.userComplianceDataCommitments(
+          node,
+          roundIndex,
+          _dissentedUser
+        )
+
+        if (commitment == 0x0) offlineNodes.push(node)
+      }
+    })
+  })
+
+  return offlineNodes
+}
+
+const findAllIncorrectResultNodes = async dissentedUsers => {
+  const incorrectResultNodes = []
+
+  await each(allNodes, async node => {
+    await each(dissentedUsers, async user => {
+      const givenAnswer = await juriNetworkProxyContract.methods
+        .givenNodeResults(node, roundIndex, user)
+        .call()
+      const acceptedAnswer = await juriNetworkProxyContract.methods
+        .givenNodeResults(roundIndex, user)
+        .call()
+
+      if (givenAnswer !== acceptedAnswer) incorrectResultNodes.push(node)
+    })
+  })
+
+  return incorrectResultNodes
+}
+
+const findAllIncorrectDissentNodes = async dissentedUsers => {
+  const incorrectDissentNodes = []
+
+  await each(allNodes, async node => {
+    await each(dissentedUsers, async user => {
+      const hasDissented = await juriNetworkProxyContract.methods
+        .hasDissented(node, roundIndex, user)
+        .call()
+      const previousAnswer = await juriNetworkProxyContract.methods
+        .userComplianceDataBeforeDissents(roundIndex, user)
+        .call()
+      const acceptedAnswer = await juriNetworkProxyContract.methods
+        .givenNodeResults(roundIndex, user)
+        .call()
+
+      if (hasDissented && previousAnswer === acceptedAnswer)
+        incorrectDissentNodes.push(node)
+    })
+  })
+
+  return incorrectDissentNodes
+}
+
+const slashDishonestNodes = async dissentedUsers => {
+  const notRevealedNodes = await findAllNotRevealedNodes()
+  const offlineNodes = await findAllOfflineNodes()
+  const incorrectResultNodes = await findAllIncorrectResultNodes(dissentedUsers)
+  const incorrectDissentNodes = await findAllIncorrectDissentNodes()
+
+  await each(notRevealedNodes, ({ toSlash, user }) =>
+    juriBondingContract.methods.slashStakeForNotRevealing(toSlash, user).send()
+  )
+
+  await each(offlineNodes, toSlash =>
+    juriBondingContract.methods.slashStakeForBeingOffline(toSlash).send()
+  )
+
+  await each(incorrectResultNodes, ({ toSlash, user }) =>
+    juriBondingContract.methods
+      .slashStakeForIncorrectResult(toSlash, user)
+      .send()
+  )
+
+  await each(incorrectDissentNodes, ({ toSlash, user }) =>
+    juriBondingContract.methods
+      .slashStakeForIncorrectDissenting(toSlash, user)
+      .send()
+  )
+}
+
+const moveToNextRound = async () => {
+  const roundIndexInProxy = await juriNetworkProxyContract.methods
+    .roundIndex()
+    .call()
+
+  if (roundIndexInProxy === roundIndex)
+    await juriNetworkProxyContract.methods.moveToNextRound().send()
+}
+
+const fetchStageTimes = async () => {
+  const stageNames = [
+    timeForCommitmentStage,
+    timeForRevealStage,
+    timeForDissentStage,
+    timeForDissentCommitmentStage,
+    timeForDissentRevealStage,
+    timeForSlashingStage,
+  ]
+  const stageTimes = await map(stageNames, stageName =>
+    juriNetworkProxyContract.methods[stageName]().call()
+  )
+
+  return stageTimes
+}
+
+const retrieveRoundReward = () =>
+  juriTokenContract.methods.retrieveRoundReward().send()
+
 // Stages:
 
 // 1) Users adding heart rate data
@@ -123,6 +263,15 @@ const receiveDissentedUsers = () =>
 // 7) Move to next round
 
 const runRound = async () => {
+  const [
+    timeForCommitmentStage,
+    timeForRevealStage,
+    timeForDissentStage,
+    timeForDissentCommitmentStage,
+    timeForDissentRevealStage,
+    timeForSlashingStage,
+  ] = await fetchStageTimes()
+
   // STAGE 2
   const assignedUsers = await retrieveAssignedUsers()
 
@@ -130,13 +279,15 @@ const runRound = async () => {
     assignedUsers
   )
 
+  await sleep(timeForCommitmentStage)
+
   // STAGE 3
   await sendReveals({ assignedUsers, randomNumbers, wasCompliantData })
-  await sleep(FIVE_MINUTES)
+  await sleep(timeForRevealStage)
 
   // STAGE 4
   await checkForInvalidAnswers(assignedUsers)
-  await sleep(FIVE_MINUTES)
+  await sleep(timeForDissentStage)
 
   // STAGE 5
   const dissentedUsers = await receiveDissentedUsers()
@@ -146,17 +297,20 @@ const runRound = async () => {
     const { randomNumbers, wasCompliantData } = await sendCommitments(
       dissentedUsers
     )
-    await sleep(FIVE_MINUTES)
+    await sleep(timeForDissentCommitmentStage)
 
     // STAGE 5.2
     await sendReveals({ assignedUsers, randomNumbers, wasCompliantData })
-    await sleep(FIVE_MINUTES)
-
-    await slashDishonestNodes() // TODO
+    await sleep(timeForDissentRevealStage)
   }
 
+  await retrieveRoundReward()
+  await slashDishonestNodes(dissentedUsers)
+
+  await sleep(timeForSlashingStage)
+
   // STAGE 7
-  // TODO move to next round
+  await moveToNextRound()
 }
 
 module.exports = runRound
