@@ -24,7 +24,10 @@ contract JuriStakingPoolWithOracle is JuriStakingPool {
             "Can only add new data after end of periodLength!"
         );
 
-        require(proxy.roundIndex() >= currentStakingRound.roundIndex);
+        require(
+            proxy.roundIndex() >= currentStakingRound.roundIndex,
+            "The results for the round are not available yet!"
+        );
 
         for (
             uint256 i = currentStakingRound.addComplianceDataIndex;

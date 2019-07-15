@@ -73,6 +73,7 @@ contract JuriStakingPool is Ownable {
 
     /**
      * @dev Reverts if called in incorrect stage.
+     * @param _stage The allowed stage for the given function.
      */
     modifier atStage(Stages _stage) {
         require(

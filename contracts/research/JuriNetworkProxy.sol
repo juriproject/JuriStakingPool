@@ -30,6 +30,7 @@ contract JuriNetworkProxy is Ownable {
     uint256 public totalJuriFees;
 
     // TODO times
+    uint256 public timeForAddingHeartRateData = 7 days;
     uint256 public timeForCommitmentStage = 1 hours;
     uint256 public timeForRevealStage = 1 hours;
     uint256 public timeForDissentStage = 1 hours;
@@ -42,6 +43,7 @@ contract JuriNetworkProxy is Ownable {
     SkaleFileStorageInterface public skaleFileStorage;
 
     constructor() public {
+        timesForStages[uint256(Stages.USER_ADDING_HEART_RATE_DATA)] = timeForAddingHeartRateData;
         timesForStages[uint256(Stages.NODES_ADDING_RESULT_COMMITMENTS)] = timeForCommitmentStage;
         timesForStages[uint256(Stages.NODES_ADDING_RESULT_REVEALS)] = timeForRevealStage;
         timesForStages[uint256(Stages.DISSENTING_PERIOD)] = timeForDissentStage;
@@ -52,6 +54,7 @@ contract JuriNetworkProxy is Ownable {
 
     /**
      * @dev Reverts if called in incorrect stage.
+     * @param _stage The allowed stage for the given function.
      */
     modifier atStage(Stages _stage) {
         require(
@@ -63,14 +66,10 @@ contract JuriNetworkProxy is Ownable {
     }
 
     modifier checkIfNextStage() {
-        if (currentStage == Stages.USER_ADDING_HEART_RATE_DATA && now > startTime.mul(7 days)) {
-            _moveToNextStage();
-        } else {
-            uint256 timeForStage = timesForStages[uint256(currentStage)];
+        uint256 timeForStage = timesForStages[uint256(currentStage)];
 
-            if (currentStage == Stages.NODES_ADDING_RESULT_COMMITMENTS && now > lastStageUpdate + timeForStage) {
-                _moveToNextStage();
-            }
+        if (now > lastStageUpdate + timeForStage) {
+            _moveToNextStage();
         }
 
         _;
@@ -116,7 +115,6 @@ contract JuriNetworkProxy is Ownable {
 
     uint256 public roundIndex = 0;
     uint256 public startTime = now;
-    uint256 public periodLength = 1 weeks;
     uint256 public nodeVerifierCount = 1;
 
     /// INTERFACE METHODS
@@ -188,6 +186,8 @@ contract JuriNetworkProxy is Ownable {
         return stateForRound[_roundIndex].userStates[_user].userComplianceData;
     }
 
+    // PUBLIC METHODS
+
     function moveToNextRound()
         public
         checkIfNextStage
@@ -218,7 +218,10 @@ contract JuriNetworkProxy is Ownable {
 
         uint8 fileStatus
             = skaleFileStorage.getFileStatus(_heartRateDataStoragePath);
-        require(fileStatus == 2); // => file exists
+        require(
+            fileStatus == 2, // => file exists
+            "Invalid storage path passed"
+        );
 
         stateForRound[roundIndex]
             .userStates[_user]
@@ -293,7 +296,10 @@ contract JuriNetworkProxy is Ownable {
             'You were not assigned to the given user!'
         );
 
-        require(!_getCurrentStateForUser(_user).dissented);
+        require(
+            !_getCurrentStateForUser(_user).dissented,
+            "User was already dissented!"
+        );
 
         stateForRound[roundIndex].userStates[_user].complianceDataBeforeDissent
             = _getCurrentStateForUser(_user).userComplianceData;
@@ -315,7 +321,10 @@ contract JuriNetworkProxy is Ownable {
         address node = msg.sender;
         NodeState memory nodeState = _getCurrentStateForNode(node);
 
-        require(!nodeState.hasRetrievedRewards);
+        require(
+            !nodeState.hasRetrievedRewards,
+            "You already retrieved your rewards this round!"
+        );
 
         uint256 activityCount = nodeState.activityCount;
         uint256 totalNodeActivityCount
@@ -407,10 +416,19 @@ contract JuriNetworkProxy is Ownable {
     ) private {
         address node = msg.sender;
 
-        require(!stateForRound[roundIndex].nodeStates[node].hasRevealed);
+        require(
+            !_getCurrentStateForNode(node).hasRevealed,
+            "You already added the complianceData!"
+        );
 
-        require(_users.length == _wasCompliantData.length);
-        require(_users.length == _randomNonces.length);
+        require(
+            _users.length == _wasCompliantData.length,
+            "The users length must match the compliance data length!"
+        );
+        require(
+            _users.length == _randomNonces.length,
+            "The users length must match the randomNonces data length!"
+        );
 
         for (uint256 i = 0; i < _users.length; i++) {
             address user = _users[i];
@@ -423,7 +441,8 @@ contract JuriNetworkProxy is Ownable {
             );
     
             require(
-                verifierNonceHash == commitment
+                verifierNonceHash == commitment,
+                "The passed random nonce does not match!"
             );
 
             stateForRound[roundIndex]
@@ -479,7 +498,10 @@ contract JuriNetworkProxy is Ownable {
         bytes32 userWorkoutSignature = userState.userWorkoutSignature;
         uint256 bondedStake = bonding.getBondedStakeOfNode(_node);
 
-        require(_proofIndex <= bondedStake.div(1e18));
+        require(
+            _proofIndex < bondedStake.div(1e18),
+            "The proof index must be smaller than the bonded stake per 1e18!"
+        );
 
         uint256 verifierHash = uint256(
             keccak256(abi.encodePacked(userWorkoutSignature, _node, _proofIndex))

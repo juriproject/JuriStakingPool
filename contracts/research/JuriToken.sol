@@ -34,7 +34,10 @@ contract JuriToken is ERC20, Ownable {
 
     function setCurrentRewardTokens() public {
         uint256 roundIndex = proxy.roundIndex();
-        require(roundIndex > currentRoundIndex);
+        require(
+            roundIndex > currentRoundIndex,
+            "The round is not yet finished!"
+        );
 
         currentRoundIndex++;
 
@@ -45,7 +48,10 @@ contract JuriToken is ERC20, Ownable {
     }
 
     function retrieveRoundInflationRewards() public {
-        require(!haveRetrievedRewards[currentRoundIndex][msg.sender]);
+        require(
+            !haveRetrievedRewards[currentRoundIndex][msg.sender],
+            "You have already retrieved your rewards for this round!"
+        );
 
         uint256 nodeActivityCount = proxy.getNodeActivityCount(currentRoundIndex, msg.sender);
         uint256 totalActivityCount = proxy.getTotalActivityCount(currentRoundIndex);

@@ -46,7 +46,10 @@ library MaxHeapLibrary {
     // RemoveMax pops off the root element of the heap (the highest value here) and rebalances the heap
     function removeMax(heapStruct storage heap) public returns (MaxHeapEntry storage){
         // Ensure the heap exists
-        require(heap.elements.length > 1);
+        require(
+            heap.elements.length > 1,
+            "There are no elements in the heap to remove!"
+        );
         // take the root value of the heap
         MaxHeapEntry storage toReturn = heap.elements[1];
 

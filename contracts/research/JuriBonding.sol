@@ -47,13 +47,24 @@ contract JuriBonding is Ownable {
     function slashStakeForBeingOffline(address _toSlashNode, address _dissentedUser) public {
         uint256 roundIndex = proxy.roundIndex();
 
-        require(!hasBeenSlashed[roundIndex][OFFLINE_SLASH]);
+        require(
+            !hasBeenSlashed[roundIndex][OFFLINE_SLASH],
+            "The node has already been slashed for being offline!"
+        );
         hasBeenSlashed[roundIndex][OFFLINE_SLASH] = true;
 
         bool userWasDissented = proxy.getDissented(roundIndex, _dissentedUser);
         bytes32 commitment = proxy.getUserComplianceDataCommitment(roundIndex, _toSlashNode, _dissentedUser);
 
-        require(userWasDissented && commitment == 0x0);
+        require(
+            userWasDissented,
+            "The passed user was not dissented!"
+        );
+
+        require(
+            commitment == 0x0,
+            "The passed node was not assigned to passed user!"
+        );
 
         _slashStake(roundIndex, _toSlashNode, msg.sender, offlinePenalty);
     }
@@ -61,12 +72,23 @@ contract JuriBonding is Ownable {
     function slashStakeForNotRevealing(address _toSlashNode, address _notRevealedUser) public {
         uint256 roundIndex = proxy.roundIndex();
 
-        require(!hasBeenSlashed[roundIndex][NOT_REVEAL_SLASH]);
+        require(
+            !hasBeenSlashed[roundIndex][NOT_REVEAL_SLASH],
+            "The node has already been slashed for not revealing!"
+        );
         hasBeenSlashed[roundIndex][NOT_REVEAL_SLASH] = true;
 
         bytes32 commitment = proxy.getUserComplianceDataCommitment(roundIndex, _toSlashNode, _notRevealedUser);
 
-        require(commitment != 0x0 && !proxy.getHasRevealed(roundIndex, _toSlashNode));
+        require(
+            !proxy.getHasRevealed(roundIndex, _toSlashNode),
+            "The passed node has revealed his commitment!"
+        );
+    
+        require(
+            commitment != 0x0,
+            "The passed node was not assigned to passed user!"
+        );
         
         _slashStake(roundIndex, _toSlashNode, msg.sender, notRevealPenalty);
     }
@@ -74,13 +96,19 @@ contract JuriBonding is Ownable {
     function slashStakeForIncorrectResult(address _toSlashNode, address _incorrectResultUser) public {
         uint256 roundIndex = proxy.roundIndex();
 
-        require(!hasBeenSlashed[roundIndex][INCORRECT_RESULT_SLASH]);
+        require(
+            !hasBeenSlashed[roundIndex][INCORRECT_RESULT_SLASH],
+            "The node has already been slashed for an incorrect result!"
+        );
         hasBeenSlashed[roundIndex][INCORRECT_RESULT_SLASH] = true;
 
         bool givenAnswer = proxy.getGivenNodeResult(roundIndex, _toSlashNode, _incorrectResultUser);
         bool acceptedAnswer = proxy.getUserComplianceData(roundIndex, _incorrectResultUser) > 0;
 
-        require(givenAnswer != acceptedAnswer);
+        require(
+            givenAnswer != acceptedAnswer,
+            "The passed node did not give an incorrect result!"
+        );
 
         _slashStake(roundIndex, _toSlashNode, msg.sender, incorrectResultPenalty);
     }
@@ -88,14 +116,25 @@ contract JuriBonding is Ownable {
     function slashStakeForIncorrectDissenting(address _toSlashNode, address _incorrectDissentUser) public {
         uint256 roundIndex = proxy.roundIndex();
 
-        require(!hasBeenSlashed[roundIndex][INCORRECT_DISSENT_SLASH]);
+        require(
+            !hasBeenSlashed[roundIndex][INCORRECT_DISSENT_SLASH],
+            "The node has already been slashed for an incorrect dissent!"
+        );
         hasBeenSlashed[roundIndex][INCORRECT_DISSENT_SLASH] = true;
 
         bool hasDissented = proxy.getHasDissented(roundIndex, _toSlashNode, _incorrectDissentUser);
         bool previousAnswer = proxy.getComplianceDataBeforeDissent(roundIndex, _incorrectDissentUser) > 0;
         bool acceptedAnswer = proxy.getUserComplianceData(roundIndex, _incorrectDissentUser) > 0;
 
-        require(hasDissented && previousAnswer == acceptedAnswer);
+        require(
+            hasDissented,
+            "The passed node did not dissent to the passed user!"
+        );
+
+        require(
+            previousAnswer == acceptedAnswer,
+            "The dissent from passed node was correct!"
+        );
 
         _slashStake(roundIndex, _toSlashNode, msg.sender, incorrectDissentPenalty);
     }
@@ -104,26 +143,44 @@ contract JuriBonding is Ownable {
         uint256 roundIndex = proxy.roundIndex();
         AllowedWithdrawalAfter memory allowed = allowedWithdrawalAmounts[msg.sender];
 
-        require(allowed.minRoundIndex >= roundIndex);
+        require(
+            allowed.minRoundIndex >= roundIndex,
+            "Not yet allowed to withdraw!"
+        );
 
         allowedWithdrawalAmounts[msg.sender] = AllowedWithdrawalAfter(0, 0);
-        require(token.transferFrom(address(this), msg.sender, allowed.amount));
+        require(
+            token.transferFrom(address(this), msg.sender, allowed.amount),
+            "Not enough tokens in bonding contract for withdrawal!"
+        );
     }
 
     function unbondStake(uint256 _amount) public {
         uint256 roundIndex = proxy.roundIndex();
         uint256 nextRoundIndex = proxy.roundIndex() + 1;
 
-        require(notChangedStakeInRound[roundIndex][msg.sender]);
+        require(
+            notChangedStakeInRound[roundIndex][msg.sender],
+            "You may only bond or unbond once per round!"
+        );
         notChangedStakeInRound[roundIndex][msg.sender] = true;
 
         uint256 oldNodeStake = bondedStakes[roundIndex][msg.sender];
         uint256 newNodeStake = oldNodeStake.sub(_amount);
         uint256 oldNodeQualityCount = oldNodeStake.div(minStakePerNode);
 
-        require(_amount > 0);
-        require(oldNodeStake >= _amount);
-        require(newNodeStake >= minStakePerNode || newNodeStake == 0);
+        require(
+            _amount > 0,
+            "Please pass an amount above 0!"
+        );
+        require(
+            oldNodeStake >= _amount,
+            "You don't have enough stake to unbond!"
+        );
+        require(
+            newNodeStake >= minStakePerNode || newNodeStake == 0,
+            "You may only unbond up to the minimum allowance or all stake!"
+        );
         
         allowedWithdrawalAmounts[msg.sender] = AllowedWithdrawalAfter(_amount, nextRoundIndex);
         bondedStakes[nextRoundIndex][msg.sender] = newNodeStake;
@@ -144,8 +201,14 @@ contract JuriBonding is Ownable {
         uint256 roundIndex = proxy.roundIndex();
         uint256 nextRoundIndex = proxy.roundIndex() + 1;
 
-        require(token.transferFrom(msg.sender, address(this), _amount));
-        require(notChangedStakeInRound[roundIndex][msg.sender]);
+        require(
+            token.transferFrom(msg.sender, address(this), _amount),
+            "Not enough tokens for bonding!"
+        );
+        require(
+            notChangedStakeInRound[roundIndex][msg.sender],
+            "You may only bond or unbond once per round!"
+        );
 
         notChangedStakeInRound[roundIndex][msg.sender] = true;
 
@@ -160,7 +223,10 @@ contract JuriBonding is Ownable {
         bondedStakes[nextRoundIndex][msg.sender] = newNodeStake;
         totalBonded = totalBonded.add(_amount);
 
-        require(newNodeStake >= minStakePerNode);
+        require(
+            newNodeStake >= minStakePerNode,
+            "You must bond at least the minimum allowance!"
+        );
 
         uint256 newNodeQualityCount = newNodeStake.div(minStakePerNode);
         uint256 addedNodeQuality = newNodeQualityCount.sub(oldNodeQualityCount);
