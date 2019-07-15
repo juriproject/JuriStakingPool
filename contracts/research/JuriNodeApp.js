@@ -11,7 +11,7 @@ const downloadHeartRateData = async user => {
     .userHeartRateDataStoragePaths(roundIndex, user)
     .call()
 
-  const file = await downloadFromChain(storagePath)
+  const file = await downloadFromChain(storagePath) // TODO
 
   return file
 }
@@ -39,7 +39,7 @@ const retrieveAssignedUsers = async () => {
     for (let i = 0; i < bondedTokenAmount; i++) {
       const verifierHash = uint256(
         keccak256(userWorkoutSignature, myJuriNodeAddress, i)
-      )
+      ) // TODO proper conversion (BigNumber + web3.utils.keccak256 ?)
 
       if (verifierHash < lowestHash) {
         lowestHash = verifierHash
@@ -108,8 +108,8 @@ const sendReveals = async ({
 const checkForInvalidAnswers = async ({ assignedUsers, wasCompliantData }) => {
   await each(assignedUsers, async (user, i) => {
     const acceptedAnswer = await juriNetworkProxyContract.methods
-      .userComplianceData(roundIndex, user)
-      .send()
+      .getUserComplianceData(roundIndex, user)
+      .call({ from: registeredJuriStakingPoolAddress })
 
     if (!!acceptedAnswer !== wasCompliantData[i])
       await juriNetworkProxyContract.methods

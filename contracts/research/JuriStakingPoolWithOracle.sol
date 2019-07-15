@@ -34,10 +34,10 @@ contract JuriStakingPoolWithOracle is JuriStakingPool {
             i++
         ) {
             address user = users[i];
-            bool wasCompliant = proxy.userComplianceData(
+            bool wasCompliant = proxy.getUserComplianceData(
                 currentStakingRound.roundIndex,
                 user
-            ) >= 0;
+            ) > 0;
 
             complianceDataAtIndex[complianceDataIndex][user] = wasCompliant;
         }

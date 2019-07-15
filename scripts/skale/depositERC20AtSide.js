@@ -57,7 +57,6 @@ const exec = async () => {
 
   const nonce = await web3ForMainnet.eth.getTransactionCount(accountForMainnet)
 
-  //create raw transaction
   const rawTxApprove = {
     from: accountForMainnet,
     nonce: '0x' + nonce.toString(16),

@@ -47,8 +47,8 @@ contract JuriToken is ERC20, Ownable {
     function retrieveRoundInflationRewards() public {
         require(!haveRetrievedRewards[currentRoundIndex][msg.sender]);
 
-        uint256 nodeActivityCount = proxy.nodeActivityCount(currentRoundIndex, msg.sender);
-        uint256 totalActivityCount = proxy.totalActivityCount(currentRoundIndex);
+        uint256 nodeActivityCount = proxy.getNodeActivityCount(currentRoundIndex, msg.sender);
+        uint256 totalActivityCount = proxy.getTotalActivityCount(currentRoundIndex);
         uint256 activityShare = nodeActivityCount.div(totalActivityCount);
 
         uint256 mintAmount = currentMintableTokens.mul(activityShare);

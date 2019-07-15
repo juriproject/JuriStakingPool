@@ -50,8 +50,8 @@ contract JuriBonding is Ownable {
         require(!hasBeenSlashed[roundIndex][OFFLINE_SLASH]);
         hasBeenSlashed[roundIndex][OFFLINE_SLASH] = true;
 
-        bool userWasDissented = proxy.dissented(roundIndex, _dissentedUser);
-        bytes32 commitment = proxy.userComplianceDataCommitments(_toSlashNode, roundIndex, _dissentedUser);
+        bool userWasDissented = proxy.getDissented(roundIndex, _dissentedUser);
+        bytes32 commitment = proxy.getUserComplianceDataCommitment(roundIndex, _toSlashNode, _dissentedUser);
 
         require(userWasDissented && commitment == 0x0);
 
@@ -64,9 +64,9 @@ contract JuriBonding is Ownable {
         require(!hasBeenSlashed[roundIndex][NOT_REVEAL_SLASH]);
         hasBeenSlashed[roundIndex][NOT_REVEAL_SLASH] = true;
 
-        bytes32 commitment = proxy.userComplianceDataCommitments(_toSlashNode, roundIndex, _notRevealedUser);
+        bytes32 commitment = proxy.getUserComplianceDataCommitment(roundIndex, _toSlashNode, _notRevealedUser);
 
-        require(commitment != 0x0 && !proxy.hasRevealed(_toSlashNode, roundIndex));
+        require(commitment != 0x0 && !proxy.getHasRevealed(roundIndex, _toSlashNode));
         
         _slashStake(roundIndex, _toSlashNode, msg.sender, notRevealPenalty);
     }
@@ -77,8 +77,8 @@ contract JuriBonding is Ownable {
         require(!hasBeenSlashed[roundIndex][INCORRECT_RESULT_SLASH]);
         hasBeenSlashed[roundIndex][INCORRECT_RESULT_SLASH] = true;
 
-        bool givenAnswer = proxy.givenNodeResults(_toSlashNode, roundIndex, _incorrectResultUser);
-        bool acceptedAnswer = proxy.userComplianceData(roundIndex, _incorrectResultUser) > 0;
+        bool givenAnswer = proxy.getGivenNodeResult(roundIndex, _toSlashNode, _incorrectResultUser);
+        bool acceptedAnswer = proxy.getUserComplianceData(roundIndex, _incorrectResultUser) > 0;
 
         require(givenAnswer != acceptedAnswer);
 
@@ -91,9 +91,9 @@ contract JuriBonding is Ownable {
         require(!hasBeenSlashed[roundIndex][INCORRECT_DISSENT_SLASH]);
         hasBeenSlashed[roundIndex][INCORRECT_DISSENT_SLASH] = true;
 
-        bool hasDissented = proxy.hasDissented(roundIndex, _toSlashNode, _incorrectDissentUser);
-        bool previousAnswer = proxy.userComplianceDataBeforeDissents(roundIndex, _incorrectDissentUser) > 0;
-        bool acceptedAnswer = proxy.userComplianceData(roundIndex, _incorrectDissentUser) > 0;
+        bool hasDissented = proxy.getHasDissented(roundIndex, _toSlashNode, _incorrectDissentUser);
+        bool previousAnswer = proxy.getComplianceDataBeforeDissent(roundIndex, _incorrectDissentUser) > 0;
+        bool acceptedAnswer = proxy.getUserComplianceData(roundIndex, _incorrectDissentUser) > 0;
 
         require(hasDissented && previousAnswer == acceptedAnswer);
 
