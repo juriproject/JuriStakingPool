@@ -119,45 +119,79 @@ contract JuriNetworkProxy is Ownable {
     uint256 public periodLength = 1 weeks;
     uint256 public nodeVerifierCount = 1;
 
-    function getDissented(uint256 _roundIndex, address _user) public view returns (bool) {
+    /// INTERFACE METHODS
+
+    function getDissented(uint256 _roundIndex, address _user)
+        public
+        view
+        returns (bool) {
         return stateForRound[_roundIndex].userStates[_user].dissented;
     }
 
-    function getComplianceDataBeforeDissent(uint256 _roundIndex, address _user) public view returns (int256) {
+    function getComplianceDataBeforeDissent(uint256 _roundIndex, address _user)
+        public
+        view
+        returns (int256) {
         return stateForRound[_roundIndex].userStates[_user].complianceDataBeforeDissent;
     }
 
-    function getHasRevealed(uint256 _roundIndex, address _node) public view returns (bool) {
+    function getHasRevealed(uint256 _roundIndex, address _node)
+        public
+        view
+        returns (bool) {
         return stateForRound[_roundIndex].nodeStates[_node].hasRevealed;
     }
 
-    function getNodeActivityCount(uint256 _roundIndex, address _node) public view returns (uint256) {
+    function getNodeActivityCount(uint256 _roundIndex, address _node)
+        public
+        view
+        returns (uint256) {
         return stateForRound[_roundIndex].nodeStates[_node].activityCount;
     }
 
-    function getTotalActivityCount(uint256 _roundIndex) public view returns (uint256) {
+    function getTotalActivityCount(uint256 _roundIndex)
+        public
+        view
+        returns (uint256) {
         return stateForRound[_roundIndex].totalActivityCount;
     }
 
-    function getUserComplianceDataCommitment(uint256 _roundIndex, address _node, address _user) public view returns (bytes32) {
+    function getUserComplianceDataCommitment(
+        uint256 _roundIndex,
+        address _node,
+        address _user
+    ) public view returns (bytes32) {
         return stateForRound[_roundIndex].nodeStates[_user].nodeForUserStates[_node].complianceDataCommitment;
     }
 
-    function getGivenNodeResult(uint256 _roundIndex, address _node, address _user) public view returns (bool) {
+    function getGivenNodeResult(
+        uint256 _roundIndex,
+        address _node,
+        address _user
+    ) public view returns (bool) {
         return stateForRound[_roundIndex].nodeStates[_user].nodeForUserStates[_node].givenNodeResult;
     }
 
-    function getHasDissented(uint256 _roundIndex, address _node, address _user) public view returns (bool) {
+    function getHasDissented(uint256 _roundIndex, address _node, address _user)
+        public
+        view
+        returns (bool) {
         return stateForRound[_roundIndex].nodeStates[_user].nodeForUserStates[_node].hasDissented;
     }
 
-    function getUserComplianceData(uint256 _roundIndex, address _user) public view returns (int256) {
+    function getUserComplianceData(uint256 _roundIndex, address _user)
+        public
+        view
+        returns (int256) {
         require(isRegisteredJuriStakingPool[msg.sender]);
 
         return stateForRound[_roundIndex].userStates[_user].userComplianceData;
     }
 
-    function moveToNextRound() public checkIfNextStage atStage(Stages.MOVE_TO_NEXT_ROUND) {
+    function moveToNextRound()
+        public
+        checkIfNextStage
+        atStage(Stages.MOVE_TO_NEXT_ROUND) {
         roundIndex++;
     
         dissentedUsers = new address[](0);
@@ -182,7 +216,8 @@ contract JuriNetworkProxy is Ownable {
     ) public checkIfNextStage atStage(Stages.USER_ADDING_HEART_RATE_DATA) {
         // TODO verify signature, HOW ?
 
-        uint8 fileStatus = skaleFileStorage.getFileStatus(_heartRateDataStoragePath);
+        uint8 fileStatus
+            = skaleFileStorage.getFileStatus(_heartRateDataStoragePath);
         require(fileStatus == 2); // => file exists
 
         stateForRound[roundIndex]
@@ -210,7 +245,9 @@ contract JuriNetworkProxy is Ownable {
         address[] memory _users,
         bytes32[] memory _wasCompliantDataCommitments,
         uint256[] memory _proofIndices
-    ) public checkIfNextStage atStage(Stages.DISSENTS_NODES_ADDING_RESULT_COMMITMENTS) {
+    ) public
+        checkIfNextStage
+        atStage(Stages.DISSENTS_NODES_ADDING_RESULT_COMMITMENTS) {
         _addWasCompliantDataCommitmentsForUsers(
             _users,
             _wasCompliantDataCommitments,
@@ -234,7 +271,9 @@ contract JuriNetworkProxy is Ownable {
         address[] memory _users,
         bool[] memory _wasCompliantData,
         bytes32[] memory _randomNonces
-    ) public checkIfNextStage atStage(Stages.DISSENTS_NODES_ADDING_RESULT_REVEALS) {
+    ) public
+        checkIfNextStage
+        atStage(Stages.DISSENTS_NODES_ADDING_RESULT_REVEALS) {
         _addWasCompliantDataForUsers(
             _users,
             _wasCompliantData,
@@ -269,14 +308,18 @@ contract JuriNetworkProxy is Ownable {
         dissentedUsers.push(_user);
     }
 
-    function retrieveRoundJuriFees() public checkIfNextStage atStage(Stages.USER_ADDING_HEART_RATE_DATA) {
+    function retrieveRoundJuriFees()
+        public
+        checkIfNextStage
+        atStage(Stages.USER_ADDING_HEART_RATE_DATA) {
         address node = msg.sender;
         NodeState memory nodeState = _getCurrentStateForNode(node);
 
         require(!nodeState.hasRetrievedRewards);
 
         uint256 activityCount = nodeState.activityCount;
-        uint256 totalNodeActivityCount = stateForRound[roundIndex].totalActivityCount;
+        uint256 totalNodeActivityCount
+            = stateForRound[roundIndex].totalActivityCount;
         uint256 activityShare = activityCount.div(totalNodeActivityCount);
         uint256 tokenAmount = totalJuriFees.mul(activityShare);
 
@@ -397,19 +440,31 @@ contract JuriNetworkProxy is Ownable {
         stateForRound[roundIndex].nodeStates[node].hasRevealed = true;
     }
 
-    function _getStateForCurrentRound() private view returns (JuriRound storage) {
+    function _getStateForCurrentRound()
+        private
+        view
+        returns (JuriRound storage) {
         return stateForRound[roundIndex];
     }
 
-    function _getCurrentStateForUser(address _user) private view returns (UserState storage) {
+    function _getCurrentStateForUser(address _user)
+        private
+        view
+        returns (UserState storage) {
         return stateForRound[roundIndex].userStates[_user];
     }
 
-    function _getCurrentStateForNode(address _node) private view returns (NodeState storage) {
+    function _getCurrentStateForNode(address _node)
+        private
+        view
+        returns (NodeState storage) {
         return stateForRound[roundIndex].nodeStates[_node];
     }
 
-    function _getCurrentStateForNodeForUser(address _node, address _user) private view returns (NodeForUserState storage) {
+    function _getCurrentStateForNodeForUser(address _node, address _user)
+        private
+        view
+        returns (NodeForUserState storage) {
         return stateForRound[roundIndex].nodeStates[_node].nodeForUserStates[_user];
     }
 
@@ -446,7 +501,10 @@ contract JuriNetworkProxy is Ownable {
         return false;
     }
 
-    function _getCurrentHighestHashForUser(address _user) private view returns (uint256) {
+    function _getCurrentHighestHashForUser(address _user)
+        private
+        view
+        returns (uint256) {
         MaxHeapLibrary.heapStruct storage verifierHashesMaxHeap
             = _getCurrentStateForUser(_user).verifierHashesMaxHeap;
 
