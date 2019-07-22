@@ -1,7 +1,7 @@
 pragma solidity 0.5.10;
 
 import "./JuriNetworkProxy.sol";
-import "./LinkedListLib.sol";
+import "./lib/LinkedListLib.sol";
 
 import "../lib/IERC20.sol";
 import "../lib/Ownable.sol";
@@ -11,6 +11,20 @@ contract JuriBonding is Ownable {
     using LinkedListLib for LinkedListLib.LinkedList;
     using SafeMath for uint256;
 
+    address constant HEAD = address(0);
+    bool constant PREV = false;
+    bool constant NEXT = true;
+    uint256 constant OFFLINE_SLASH = 0;
+    uint256 constant NOT_REVEAL_SLASH = 1;
+    uint256 constant INCORRECT_RESULT_SLASH = 2;
+    uint256 constant INCORRECT_DISSENT_SLASH = 3;
+
+    struct ValidStakeAfter {
+        uint256 oldStake;
+        uint256 newStake;
+        uint256 afterRoundId;
+    }
+
     struct AllowedWithdrawalAfter {
         uint256 amount;
         uint256 minRoundIndex;
@@ -18,31 +32,38 @@ contract JuriBonding is Ownable {
 
     JuriNetworkProxy public proxy;
     IERC20 public token;
-    uint256 public totalBonded;
-    mapping (uint256 => uint256) public totalNodesCount;
-
     LinkedListLib.LinkedList stakingNodes;
 
-    address constant HEAD = address(0);
-    bool constant PREV = false;
-    bool constant NEXT = true;
-
-    uint256 constant OFFLINE_SLASH = 0;
-    uint256 constant NOT_REVEAL_SLASH = 1;
-    uint256 constant INCORRECT_RESULT_SLASH = 2;
-    uint256 constant INCORRECT_DISSENT_SLASH = 3;
-
-    mapping (uint256 => mapping (address => uint256)) bondedStakes;
-    mapping (uint256 => mapping (uint256 => bool)) hasBeenSlashed;
-    mapping (uint256 => mapping (address => bool)) notChangedStakeInRound;
-    mapping (address => AllowedWithdrawalAfter) allowedWithdrawalAmounts;
-
+    mapping (address => AllowedWithdrawalAfter) public allowedWithdrawalAmounts;
+    mapping (uint256 => uint256) public totalNodesCount;
+    mapping (address => ValidStakeAfter) public bondedStakes;
+    mapping (uint256 => mapping (uint256 => bool)) public hasBeenSlashed;
+    mapping (uint256 => mapping (address => bool)) public changedStakeInRound;
+    
+    uint256 public totalBonded;
     uint256 public minStakePerNode = 1000e18;
+    uint256 public offlinePenalty;
+    uint256 public notRevealPenalty;
+    uint256 public incorrectResultPenalty;
+    uint256 public incorrectDissentPenalty;
 
-    uint256 public offlinePenalty = 10;
-    uint256 public notRevealPenalty = 20;
-    uint256 public incorrectResultPenalty = 20;
-    uint256 public incorrectDissentPenalty = 100;
+    constructor(
+        JuriNetworkProxy _proxy,
+        IERC20 _token,
+        uint256 _minStakePerNode,
+        uint256 _offlinePenalty,
+        uint256 _notRevealPenalty,
+        uint256 _incorrectResultPenalty,
+        uint256 _incorrectDissentPenalty
+    ) public {
+        proxy = _proxy;
+        token = _token;
+        minStakePerNode = _minStakePerNode;
+        offlinePenalty = _offlinePenalty;
+        notRevealPenalty = _notRevealPenalty;
+        incorrectResultPenalty = _incorrectResultPenalty;
+        incorrectDissentPenalty = _incorrectDissentPenalty;
+    }
 
     function slashStakeForBeingOffline(address _toSlashNode, address _dissentedUser) public {
         uint256 roundIndex = proxy.roundIndex();
@@ -56,11 +77,7 @@ contract JuriBonding is Ownable {
         bool userWasDissented = proxy.getDissented(roundIndex, _dissentedUser);
         bytes32 commitment = proxy.getUserComplianceDataCommitment(roundIndex, _toSlashNode, _dissentedUser);
 
-        require(
-            userWasDissented,
-            "The passed user was not dissented!"
-        );
-
+        require(userWasDissented, "The passed user was not dissented!");
         require(
             commitment == 0x0,
             "The passed node was not assigned to passed user!"
@@ -81,10 +98,9 @@ contract JuriBonding is Ownable {
         bytes32 commitment = proxy.getUserComplianceDataCommitment(roundIndex, _toSlashNode, _notRevealedUser);
 
         require(
-            !proxy.getHasRevealed(roundIndex, _toSlashNode),
+            !proxy.getHasRevealed(roundIndex, _toSlashNode), // TODO dissentHasRevealed
             "The passed node has revealed his commitment!"
         );
-    
         require(
             commitment != 0x0,
             "The passed node was not assigned to passed user!"
@@ -155,17 +171,74 @@ contract JuriBonding is Ownable {
         );
     }
 
+    function bondStake(uint256 _amount) public {
+        uint256 roundIndex = proxy.roundIndex();
+        uint256 nextRoundIndex = proxy.roundIndex() + 1;
+
+        require(
+            token.transferFrom(msg.sender, address(this), _amount),
+            "Not enough tokens for bonding!"
+        );
+        require(
+            !changedStakeInRound[roundIndex][msg.sender],
+            "You may only bond or unbond once per round!"
+        );
+
+        changedStakeInRound[roundIndex][msg.sender] = true;
+
+        ValidStakeAfter memory currentStakeAfter = bondedStakes[msg.sender];
+        uint256 oldNodeStake;
+
+        if (currentStakeAfter.afterRoundId <= roundIndex) {
+            oldNodeStake = currentStakeAfter.newStake;
+        } else {
+            oldNodeStake = currentStakeAfter.oldStake;
+        }
+
+        if (oldNodeStake == 0) {
+            stakingNodes.insert(HEAD, msg.sender, PREV);
+        }
+
+        uint256 newNodeStake = oldNodeStake.add(_amount);
+        uint256 oldNodeQualityCount = oldNodeStake.div(minStakePerNode);
+
+        bondedStakes[msg.sender]
+            = ValidStakeAfter(oldNodeStake, newNodeStake, nextRoundIndex);
+        totalBonded = totalBonded.add(_amount);
+
+        require(
+            newNodeStake >= minStakePerNode,
+            "You must bond at least the minimum allowance!"
+        );
+
+        uint256 newNodeQualityCount = newNodeStake.div(minStakePerNode);
+        uint256 addedNodeQuality = newNodeQualityCount.sub(oldNodeQualityCount);
+
+        uint256 oldNextTotalNodesCount = totalNodesCount[nextRoundIndex] > 0
+            ? totalNodesCount[nextRoundIndex]
+            : totalNodesCount[roundIndex];
+        totalNodesCount[nextRoundIndex] = oldNextTotalNodesCount.add(addedNodeQuality);
+    }
+
     function unbondStake(uint256 _amount) public {
         uint256 roundIndex = proxy.roundIndex();
         uint256 nextRoundIndex = proxy.roundIndex() + 1;
 
         require(
-            notChangedStakeInRound[roundIndex][msg.sender],
+            !changedStakeInRound[roundIndex][msg.sender],
             "You may only bond or unbond once per round!"
         );
-        notChangedStakeInRound[roundIndex][msg.sender] = true;
+        changedStakeInRound[roundIndex][msg.sender] = true;
 
-        uint256 oldNodeStake = bondedStakes[roundIndex][msg.sender];
+        ValidStakeAfter memory currentStakeAfter = bondedStakes[msg.sender];
+        uint256 oldNodeStake;
+
+        if (currentStakeAfter.afterRoundId <= roundIndex) {
+            oldNodeStake = currentStakeAfter.newStake;
+        } else {
+            oldNodeStake = currentStakeAfter.oldStake;
+        }
+
         uint256 newNodeStake = oldNodeStake.sub(_amount);
         uint256 oldNodeQualityCount = oldNodeStake.div(minStakePerNode);
 
@@ -182,57 +255,30 @@ contract JuriBonding is Ownable {
             "You may only unbond up to the minimum allowance or all stake!"
         );
         
-        allowedWithdrawalAmounts[msg.sender] = AllowedWithdrawalAfter(_amount, nextRoundIndex);
-        bondedStakes[nextRoundIndex][msg.sender] = newNodeStake;
+        allowedWithdrawalAmounts[msg.sender]
+            = AllowedWithdrawalAfter(_amount, nextRoundIndex);
+        bondedStakes[msg.sender]
+            = ValidStakeAfter(oldNodeStake, newNodeStake, nextRoundIndex);
         totalBonded = totalBonded.sub(_amount);
 
         uint256 newNodeQualityCount = newNodeStake.div(minStakePerNode);
         uint256 removedNodeQuality = newNodeQualityCount.sub(oldNodeQualityCount);
 
-        uint256 oldNextTotalNodesCount = totalNodesCount[nextRoundIndex];
-        totalNodesCount[nextRoundIndex] = oldNextTotalNodesCount.sub(removedNodeQuality);
+        uint256 oldNextTotalNodesCount = totalNodesCount[nextRoundIndex] > 0
+            ? totalNodesCount[nextRoundIndex]
+            : totalNodesCount[roundIndex];
+        totalNodesCount[nextRoundIndex]
+            = oldNextTotalNodesCount.sub(removedNodeQuality);
 
         if (newNodeStake == 0) {
             stakingNodes.remove(msg.sender);
         }
     }
 
-    function bondStake(uint256 _amount) public {
-        uint256 roundIndex = proxy.roundIndex();
-        uint256 nextRoundIndex = proxy.roundIndex() + 1;
-
-        require(
-            token.transferFrom(msg.sender, address(this), _amount),
-            "Not enough tokens for bonding!"
-        );
-        require(
-            notChangedStakeInRound[roundIndex][msg.sender],
-            "You may only bond or unbond once per round!"
-        );
-
-        notChangedStakeInRound[roundIndex][msg.sender] = true;
-
-        if (bondedStakes[roundIndex][msg.sender] == 0) {
-            stakingNodes.insert(HEAD, msg.sender, PREV);
-        }
-
-        uint256 oldNodeStake = bondedStakes[roundIndex][msg.sender];
-        uint256 newNodeStake = oldNodeStake.add(_amount);
-        uint256 oldNodeQualityCount = oldNodeStake.div(minStakePerNode);
-
-        bondedStakes[nextRoundIndex][msg.sender] = newNodeStake;
-        totalBonded = totalBonded.add(_amount);
-
-        require(
-            newNodeStake >= minStakePerNode,
-            "You must bond at least the minimum allowance!"
-        );
-
-        uint256 newNodeQualityCount = newNodeStake.div(minStakePerNode);
-        uint256 addedNodeQuality = newNodeQualityCount.sub(oldNodeQualityCount);
-
-        uint256 oldNextTotalNodesCount = totalNodesCount[nextRoundIndex];
-        totalNodesCount[nextRoundIndex] = oldNextTotalNodesCount.add(addedNodeQuality);
+    function moveToNextRound(uint256 _newRoundIndex) external onlyOwner {
+        totalNodesCount[_newRoundIndex] = totalNodesCount[_newRoundIndex] > 0
+            ? totalNodesCount[_newRoundIndex]
+            : totalNodesCount[_newRoundIndex.sub(1)];
     }
 
     function getBondedStakeOfNode(
@@ -240,7 +286,11 @@ contract JuriBonding is Ownable {
     ) public view returns (uint256) {
         uint256 roundIndex = proxy.roundIndex();
 
-        return bondedStakes[roundIndex][_node];
+        ValidStakeAfter memory currentStakeAfter = bondedStakes[_node];
+
+        return currentStakeAfter.afterRoundId <= roundIndex
+            ? currentStakeAfter.newStake
+            : currentStakeAfter.oldStake;
     }
 
     function getAllStakingNodes() public view returns (address[] memory) {
@@ -262,13 +312,24 @@ contract JuriBonding is Ownable {
         address _to,
         uint256 _penalty
     ) private returns (uint256) {
-         uint256 nextRoundIndex = _roundIndex + 1;
-        uint256 slashedStake = bondedStakes[_roundIndex][_from].mul(_penalty).div(100);
+        uint256 nextRoundIndex = _roundIndex + 1;
+        ValidStakeAfter memory stakeAfterFrom = bondedStakes[_from];
+        ValidStakeAfter memory stakeAfterTo = bondedStakes[_to];
 
-        bondedStakes[_roundIndex][_from] = bondedStakes[_roundIndex][_from].sub(slashedStake);
-        bondedStakes[_roundIndex][_to] = bondedStakes[_roundIndex][_to].add(slashedStake);
+        uint256 stakeFrom = stakeAfterFrom.afterRoundId <= _roundIndex
+            ? stakeAfterFrom.newStake
+            : stakeAfterFrom.oldStake;
+        uint256 stakeTo = stakeAfterTo.afterRoundId <= _roundIndex
+            ? stakeAfterTo.newStake
+            : stakeAfterTo.oldStake;
 
-        bondedStakes[nextRoundIndex][_from] = bondedStakes[nextRoundIndex][_from].sub(slashedStake);
-        bondedStakes[nextRoundIndex][_to] = bondedStakes[nextRoundIndex][_to].add(slashedStake);
+        uint256 slashedStake = stakeFrom.mul(_penalty).div(100);
+        uint256 newStakeFrom = stakeAfterFrom.newStake.sub(slashedStake);
+        uint256 newStakeTo = stakeAfterTo.newStake.add(slashedStake);
+
+        bondedStakes[_from]
+            = ValidStakeAfter(stakeFrom, newStakeFrom, nextRoundIndex);
+        bondedStakes[_to]
+            = ValidStakeAfter(stakeTo, newStakeTo, nextRoundIndex);
     }
 }

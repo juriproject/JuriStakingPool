@@ -10,7 +10,9 @@ module.exports = deployer => {
     const token = await deployer.deploy(ERC20Mintable)
     await token.mint('0x15ae150d7dC03d3B635EE90b85219dBFe071ED35', new BN(1000))
 
-    const startTime = new BN(Math.round(Date.now() / 1000) + 120)
+    const startTime = new BN(Math.round(Date.now() / 1000)).add(
+      new BN(1000000000000)
+    )
     const periodLength = new BN(60 * 60 * 24 * 7)
     const feePercentage = new BN(1)
     const compliantGainPercentage = new BN(4)

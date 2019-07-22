@@ -1,6 +1,6 @@
 pragma solidity 0.5.10;
 
-import "../lib/SafeMath.sol";
+import "../../lib/SafeMath.sol";
 
 library MaxHeapLibrary {
     using SafeMath for uint256;
@@ -9,7 +9,7 @@ library MaxHeapLibrary {
     // The main operations of a priority queue are insert, delMax, & isEmpty.
     constructor() public {
         // Start at 0
-        heap = [0];
+        heap = [MaxHeapEntry(address(0), 0)];
     }
     */
 
@@ -24,6 +24,11 @@ library MaxHeapLibrary {
 
     // Inserts adds in a value to our heap.
     function insert(heapStruct storage heap, address _node, uint256 _value) public {
+        if (heap.elements.length == 0) {
+            MaxHeapEntry memory emptyEntry = MaxHeapEntry(address(0), 0);
+            heap.elements.push(emptyEntry);
+        }
+
         MaxHeapEntry memory newEntry = MaxHeapEntry(_node, _value);
 
         // Add the value to the end of our array
@@ -100,10 +105,18 @@ library MaxHeapLibrary {
     }
 
     function getMax(heapStruct storage heap) public view returns(MaxHeapEntry storage) {
+        if (heap.elements.length == 1) {
+            return heap.elements[0];
+        }
+
         return heap.elements[1];
     }
 
     function getLength(heapStruct storage heap) public view returns(uint256) {
-        return heap.elements.length;
+        if (heap.elements.length == 0) {
+            return 0;
+        }
+
+        return heap.elements.length - 1;
     }
 }

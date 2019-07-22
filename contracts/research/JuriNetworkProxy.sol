@@ -5,8 +5,8 @@ import "../lib/Ownable.sol";
 import "../lib/SafeMath.sol";
 
 import "./JuriBonding.sol";
-import "./MaxHeapLibrary.sol";
-import "./SkaleFileStorageInterface.sol";
+import "./lib/MaxHeapLibrary.sol";
+import "./lib/SkaleFileStorageInterface.sol";
 
 contract JuriNetworkProxy is Ownable {
     using SafeMath for uint256;
@@ -19,66 +19,8 @@ contract JuriNetworkProxy is Ownable {
         DISSENTING_PERIOD,
         DISSENTS_NODES_ADDING_RESULT_COMMITMENTS,
         DISSENTS_NODES_ADDING_RESULT_REVEALS,
-        SLASHING_PERIOD,
-        MOVE_TO_NEXT_ROUND
+        SLASHING_PERIOD
     }
-
-    IERC20 public token;
-    Stages public currentStage;
-    uint256 public lastStageUpdate;
-
-    uint256 public totalJuriFees;
-
-    // TODO times
-    uint256 public timeForAddingHeartRateData = 7 days;
-    uint256 public timeForCommitmentStage = 1 hours;
-    uint256 public timeForRevealStage = 1 hours;
-    uint256 public timeForDissentStage = 1 hours;
-    uint256 public timeForDissentCommitmentStage = 1 hours;
-    uint256 public timeForDissentRevealStage = 1 hours;
-    uint256 public timeForSlashingStage = 1 hours;
-
-    mapping (uint256 => uint256) public timesForStages;
-
-    SkaleFileStorageInterface public skaleFileStorage;
-
-    constructor() public {
-        timesForStages[uint256(Stages.USER_ADDING_HEART_RATE_DATA)] = timeForAddingHeartRateData;
-        timesForStages[uint256(Stages.NODES_ADDING_RESULT_COMMITMENTS)] = timeForCommitmentStage;
-        timesForStages[uint256(Stages.NODES_ADDING_RESULT_REVEALS)] = timeForRevealStage;
-        timesForStages[uint256(Stages.DISSENTING_PERIOD)] = timeForDissentStage;
-        timesForStages[uint256(Stages.DISSENTS_NODES_ADDING_RESULT_COMMITMENTS)] = timeForDissentCommitmentStage;
-        timesForStages[uint256(Stages.DISSENTS_NODES_ADDING_RESULT_REVEALS)] = timeForDissentRevealStage;
-        timesForStages[uint256(Stages.SLASHING_PERIOD)] = timeForSlashingStage;
-    }
-
-    /**
-     * @dev Reverts if called in incorrect stage.
-     * @param _stage The allowed stage for the given function.
-     */
-    modifier atStage(Stages _stage) {
-        require(
-            currentStage == _stage,
-            "Function cannot be called at this time!"
-        );
-
-        _;
-    }
-
-    modifier checkIfNextStage() {
-        uint256 timeForStage = timesForStages[uint256(currentStage)];
-
-        if (now > lastStageUpdate + timeForStage) {
-            _moveToNextStage();
-        }
-
-        _;
-    }
-
-    JuriBonding public bonding;
-
-    address[] public registeredJuriStakingPools;
-    mapping (address => bool) public isRegisteredJuriStakingPool;
 
     struct UserState {
         MaxHeapLibrary.heapStruct verifierHashesMaxHeap;
@@ -99,6 +41,7 @@ contract JuriNetworkProxy is Ownable {
     struct NodeState {
         mapping (address => NodeForUserState) nodeForUserStates;
         bool hasRevealed;
+        bool dissentHasRevealed;
         bool hasRetrievedRewards;
         uint256 activityCount;
     }
@@ -109,97 +52,95 @@ contract JuriNetworkProxy is Ownable {
         uint256 totalActivityCount;
     }
 
-    mapping (uint256 => JuriRound) private stateForRound;
+    /**
+     * @dev Reverts if called in incorrect stage.
+     * @param _stage The allowed stage for the given function.
+     */
+    modifier atStage(Stages _stage) {
+        require(
+            currentStage == _stage,
+            "Function cannot be called at this time!"
+        );
 
+        _;
+    }
+
+    modifier checkIfNextStage() {
+        uint256 timeForStage = timesForStages[uint256(currentStage)];
+
+        if (currentStage == Stages.SLASHING_PERIOD) {
+            if (now.sub(startTime) > roundIndex.mul(timeForStage)) {
+                _moveToNextStage();
+            }
+        } else if (now > lastStageUpdate.add(timeForStage)) {
+            _moveToNextStage();
+        }
+
+        _;
+    }
+
+    JuriBonding public bonding;
+    IERC20 public token;
+    SkaleFileStorageInterface public skaleFileStorage;
+
+    Stages public currentStage;
+    uint256 public roundIndex;
+    uint256 public startTime;
+    uint256 public lastStageUpdate;
+    uint256 public totalJuriFees;
+    uint256 public nodeVerifierCount;
     address[] public dissentedUsers;
 
-    uint256 public roundIndex = 0;
-    uint256 public startTime = now;
-    uint256 public nodeVerifierCount = 1;
+    mapping (uint256 => uint256) public timesForStages;
+    mapping (address => bool) public isRegisteredJuriStakingPool;
+    mapping (uint256 => JuriRound) private stateForRound;
 
-    /// INTERFACE METHODS
+    constructor(
+        IERC20 _token,
+        SkaleFileStorageInterface _skaleFileStorage,
+        uint256 _timeForAddingHeartRateData,
+        uint256 _timeForCommitmentStage,
+        uint256 _timeForRevealStage,
+        uint256 _timeForDissentStage,
+        uint256 _timeForDissentCommitmentStage,
+        uint256 _timeForDissentRevealStage,
+        uint256 _timeForSlashingStage,
+        uint256 _minStakePerNode,
+        uint256 _offlinePenalty,
+        uint256 _notRevealPenalty,
+        uint256 _incorrectResultPenalty,
+        uint256 _incorrectDissentPenalty
+    ) public {
+        timesForStages[uint256(Stages.USER_ADDING_HEART_RATE_DATA)] = _timeForAddingHeartRateData;
+        timesForStages[uint256(Stages.NODES_ADDING_RESULT_COMMITMENTS)] = _timeForCommitmentStage;
+        timesForStages[uint256(Stages.NODES_ADDING_RESULT_REVEALS)] = _timeForRevealStage;
+        timesForStages[uint256(Stages.DISSENTING_PERIOD)] = _timeForDissentStage;
+        timesForStages[uint256(Stages.DISSENTS_NODES_ADDING_RESULT_COMMITMENTS)] = _timeForDissentCommitmentStage;
+        timesForStages[uint256(Stages.DISSENTS_NODES_ADDING_RESULT_REVEALS)] = _timeForDissentRevealStage;
+        timesForStages[uint256(Stages.SLASHING_PERIOD)] = _timeForSlashingStage;
 
-    function getDissented(uint256 _roundIndex, address _user)
-        public
-        view
-        returns (bool) {
-        return stateForRound[_roundIndex].userStates[_user].dissented;
-    }
+        bonding = new JuriBonding(
+            this,
+            _token,
+            _minStakePerNode,
+            _offlinePenalty,
+            _notRevealPenalty,
+            _incorrectResultPenalty,
+            _incorrectDissentPenalty
+        );
+        registerJuriStakingPool(address(bonding));
 
-    function getComplianceDataBeforeDissent(uint256 _roundIndex, address _user)
-        public
-        view
-        returns (int256) {
-        return stateForRound[_roundIndex].userStates[_user].complianceDataBeforeDissent;
-    }
-
-    function getHasRevealed(uint256 _roundIndex, address _node)
-        public
-        view
-        returns (bool) {
-        return stateForRound[_roundIndex].nodeStates[_node].hasRevealed;
-    }
-
-    function getNodeActivityCount(uint256 _roundIndex, address _node)
-        public
-        view
-        returns (uint256) {
-        return stateForRound[_roundIndex].nodeStates[_node].activityCount;
-    }
-
-    function getTotalActivityCount(uint256 _roundIndex)
-        public
-        view
-        returns (uint256) {
-        return stateForRound[_roundIndex].totalActivityCount;
-    }
-
-    function getUserComplianceDataCommitment(
-        uint256 _roundIndex,
-        address _node,
-        address _user
-    ) public view returns (bytes32) {
-        return stateForRound[_roundIndex].nodeStates[_user].nodeForUserStates[_node].complianceDataCommitment;
-    }
-
-    function getGivenNodeResult(
-        uint256 _roundIndex,
-        address _node,
-        address _user
-    ) public view returns (bool) {
-        return stateForRound[_roundIndex].nodeStates[_user].nodeForUserStates[_node].givenNodeResult;
-    }
-
-    function getHasDissented(uint256 _roundIndex, address _node, address _user)
-        public
-        view
-        returns (bool) {
-        return stateForRound[_roundIndex].nodeStates[_user].nodeForUserStates[_node].hasDissented;
-    }
-
-    function getUserComplianceData(uint256 _roundIndex, address _user)
-        public
-        view
-        returns (int256) {
-        require(isRegisteredJuriStakingPool[msg.sender]);
-
-        return stateForRound[_roundIndex].userStates[_user].userComplianceData;
+        skaleFileStorage = _skaleFileStorage;
+        token = _token;
+        currentStage = Stages.USER_ADDING_HEART_RATE_DATA;
+        roundIndex = 0;
+        startTime = now;
+        lastStageUpdate = now;
+        totalJuriFees = 0;
+        nodeVerifierCount = 1;
     }
 
     // PUBLIC METHODS
-
-    function moveToNextRound()
-        public
-        checkIfNextStage
-        atStage(Stages.MOVE_TO_NEXT_ROUND) {
-        roundIndex++;
-    
-        dissentedUsers = new address[](0);
-        nodeVerifierCount = bonding.totalNodesCount(roundIndex).div(3);
-        totalJuriFees = token.balanceOf(address(this));
-
-        _moveToNextStage();
-    }
 
     function registerJuriStakingPool(address _poolAddress) public onlyOwner {
         isRegisteredJuriStakingPool[_poolAddress] = true;
@@ -209,8 +150,47 @@ contract JuriNetworkProxy is Ownable {
         isRegisteredJuriStakingPool[_poolAddress] = false;
     }
 
+    // TODO remove
+    function debugIncreaseRoundIndex() public onlyOwner {
+        roundIndex++;
+    }
+
+    function moveToNextRound()
+        public
+        atStage(Stages.SLASHING_PERIOD)
+        checkIfNextStage {
+        roundIndex++;
+
+        bonding.moveToNextRound(roundIndex);
+    
+        dissentedUsers = new address[](0);
+        nodeVerifierCount = bonding.totalNodesCount(roundIndex); // TODO .div(3);
+        totalJuriFees = token.balanceOf(address(this));
+    }
+
+    function moveToDissentPeriod()
+        public
+        atStage(Stages.NODES_ADDING_RESULT_REVEALS)
+        checkIfNextStage {
+        // do nothing
+    }
+
+    function moveToSlashingPeriod()
+        public
+        atStage(Stages.DISSENTS_NODES_ADDING_RESULT_REVEALS)
+        checkIfNextStage {
+        // do nothing
+    }
+
+    function moveFromDissentToNextPeriod()
+        public
+        atStage(Stages.DISSENTING_PERIOD)
+        checkIfNextStage {
+        // do nothing
+    }
+
     function addHeartRateDateForPoolUser(
-        address _user,
+        address _user, // TODO make msg.sender
         bytes32 _userWorkoutSignature,
         string memory _heartRateDataStoragePath
     ) public checkIfNextStage atStage(Stages.USER_ADDING_HEART_RATE_DATA) {
@@ -263,6 +243,12 @@ contract JuriNetworkProxy is Ownable {
         bool[] memory _wasCompliantData,
         bytes32[] memory _randomNonces
     ) public checkIfNextStage atStage(Stages.NODES_ADDING_RESULT_REVEALS) {
+        require(
+            !_getCurrentStateForNode(msg.sender).hasRevealed,
+            "You already added the complianceData!"
+        );
+        stateForRound[roundIndex].nodeStates[msg.sender].hasRevealed = true;
+
         _addWasCompliantDataForUsers(
             _users,
             _wasCompliantData,
@@ -277,6 +263,12 @@ contract JuriNetworkProxy is Ownable {
     ) public
         checkIfNextStage
         atStage(Stages.DISSENTS_NODES_ADDING_RESULT_REVEALS) {
+        require(
+            !_getCurrentStateForNode(msg.sender).dissentHasRevealed,
+            "You already added the complianceData!"
+        );
+        stateForRound[roundIndex].nodeStates[msg.sender].dissentHasRevealed = true;
+
         _addWasCompliantDataForUsers(
             _users,
             _wasCompliantData,
@@ -303,6 +295,8 @@ contract JuriNetworkProxy is Ownable {
 
         stateForRound[roundIndex].userStates[_user].complianceDataBeforeDissent
             = _getCurrentStateForUser(_user).userComplianceData;
+        // stateForRound[roundIndex].userStates[_user].userComplianceData = 0;
+        // (commented out to keep old results)
         stateForRound[roundIndex]
             .userStates[_user]
             .dissented = true;
@@ -336,6 +330,80 @@ contract JuriNetworkProxy is Ownable {
         token.transfer(node, tokenAmount);
     }
 
+    /// INTERFACE METHODS
+
+    function getDissented(uint256 _roundIndex, address _user)
+        public
+        view
+        returns (bool) {
+        return stateForRound[_roundIndex].userStates[_user].dissented;
+    }
+
+    function getComplianceDataBeforeDissent(uint256 _roundIndex, address _user)
+        public
+        view
+        returns (int256) {
+        return stateForRound[_roundIndex].userStates[_user].complianceDataBeforeDissent;
+    }
+
+    function getHasRevealed(uint256 _roundIndex, address _node)
+        public
+        view
+        returns (bool) {
+        return stateForRound[_roundIndex].nodeStates[_node].hasRevealed;
+    }
+
+    function getNodeActivityCount(uint256 _roundIndex, address _node)
+        public
+        view
+        returns (uint256) {
+        return stateForRound[_roundIndex].nodeStates[_node].activityCount;
+    }
+
+    function getTotalActivityCount(uint256 _roundIndex)
+        public
+        view
+        returns (uint256) {
+        return stateForRound[_roundIndex].totalActivityCount;
+    }
+
+    function getUserComplianceDataCommitment(
+        uint256 _roundIndex,
+        address _node,
+        address _user
+    ) public view returns (bytes32) {
+        return stateForRound[_roundIndex].nodeStates[_node].nodeForUserStates[_user].complianceDataCommitment;
+    }
+
+    function getGivenNodeResult(
+        uint256 _roundIndex,
+        address _node,
+        address _user
+    ) public view returns (bool) {
+        return stateForRound[_roundIndex].nodeStates[_user].nodeForUserStates[_node].givenNodeResult;
+    }
+
+    function getHasDissented(uint256 _roundIndex, address _node, address _user)
+        public
+        view
+        returns (bool) {
+        return stateForRound[_roundIndex].nodeStates[_node].nodeForUserStates[_user].hasDissented;
+    }
+
+    function getUserComplianceData(uint256 _roundIndex, address _user)
+        public
+        view
+        returns (int256) {
+        require(
+            isRegisteredJuriStakingPool[msg.sender],
+            "Pool is not registered to receive new data!"
+        );
+
+        return stateForRound[_roundIndex].userStates[_user].userComplianceData;
+    }
+
+    /// PRIVATE METHODS
+
     function _increaseActivityCountForNode(
         address _node,
         uint256 _activityCount
@@ -366,14 +434,14 @@ contract JuriNetworkProxy is Ownable {
         } else if (currentStage == Stages.NODES_ADDING_RESULT_REVEALS) {
             currentStage = Stages.DISSENTING_PERIOD;
         } else if (currentStage == Stages.DISSENTING_PERIOD) {
-            currentStage = Stages.DISSENTS_NODES_ADDING_RESULT_COMMITMENTS;
+            currentStage = dissentedUsers.length > 0
+                ? Stages.DISSENTS_NODES_ADDING_RESULT_COMMITMENTS
+                : Stages.SLASHING_PERIOD;
         } else if (currentStage == Stages.DISSENTS_NODES_ADDING_RESULT_COMMITMENTS) {
             currentStage = Stages.DISSENTS_NODES_ADDING_RESULT_REVEALS;
         } else if (currentStage == Stages.DISSENTS_NODES_ADDING_RESULT_REVEALS) {
             currentStage = Stages.SLASHING_PERIOD;
         } else if (currentStage == Stages.SLASHING_PERIOD) {
-            currentStage = Stages.MOVE_TO_NEXT_ROUND;
-        } else if (currentStage == Stages.MOVE_TO_NEXT_ROUND) {
             currentStage = Stages.USER_ADDING_HEART_RATE_DATA;
         }
 
@@ -387,10 +455,16 @@ contract JuriNetworkProxy is Ownable {
     ) private {
         address node = msg.sender;
 
+
         for (uint256 i = 0; i < _users.length; i++) {
             address user = _users[i];
             bytes32 wasCompliantCommitment = _wasCompliantDataCommitments[i];
             uint256 proofIndex = _proofIndices[i];
+
+            require(
+                _getCurrentStateForNodeForUser(node, user).complianceDataCommitment == 0x0,
+                'Node already added the compliance data for the given user!'
+            );
 
             if (!_getCurrentStateForUser(user).dissented) {
                 require(
@@ -415,11 +489,6 @@ contract JuriNetworkProxy is Ownable {
         bytes32[] memory _randomNonces
     ) private {
         address node = msg.sender;
-
-        require(
-            !_getCurrentStateForNode(node).hasRevealed,
-            "You already added the complianceData!"
-        );
 
         require(
             _users.length == _wasCompliantData.length,
@@ -455,8 +524,6 @@ contract JuriNetworkProxy is Ownable {
             stateForRound[roundIndex].userStates[user].userComplianceData
                 = wasCompliant ? currentCompliance + 1 : currentCompliance - 1;
         }
-
-        stateForRound[roundIndex].nodeStates[node].hasRevealed = true;
     }
 
     function _getStateForCurrentRound()
@@ -510,12 +577,13 @@ contract JuriNetworkProxy is Ownable {
         MaxHeapLibrary.heapStruct storage verifierHashesMaxHeap
             = userState.verifierHashesMaxHeap;
 
-        if (verifierHashesMaxHeap.getLength() < nodeVerifierCount
+        if (verifierHashesMaxHeap.getLength() < nodeVerifierCount // TODO count node quality ??
             || verifierHash < currentHighestHash) {
-            address removedNode
-                = _addNewVerifierHashForUser(_node, _user, verifierHash);
+            _addNewVerifierHashForUser(_node, _user, verifierHash);
 
-            _decrementActivityCountForNode(removedNode);
+            if (verifierHashesMaxHeap.getLength() > nodeVerifierCount) {
+                _removeMaxVerifierHashForUser(_user);
+            }
 
             return true;
         }
@@ -530,18 +598,19 @@ contract JuriNetworkProxy is Ownable {
         MaxHeapLibrary.heapStruct storage verifierHashesMaxHeap
             = _getCurrentStateForUser(_user).verifierHashesMaxHeap;
 
-        return verifierHashesMaxHeap.getMax().value;
+        uint256 hashesCount = verifierHashesMaxHeap.getLength();
+        uint256 highestHash = hashesCount > 0
+            ? verifierHashesMaxHeap.getMax().value
+            : 0;
+
+        return highestHash;
     }
 
-    function _addNewVerifierHashForUser(
-        address _node,
-        address _user,
-        uint256 _verifierHash
-    ) private returns (address) {        
+    function _removeMaxVerifierHashForUser(
+        address _user
+    ) private {
         MaxHeapLibrary.heapStruct storage verifierHashesMaxHeap
             = _getCurrentStateForUser(_user).verifierHashesMaxHeap;
-        verifierHashesMaxHeap.insert(_node, _verifierHash);
-
         MaxHeapLibrary.MaxHeapEntry memory removedEntry
             = verifierHashesMaxHeap.removeMax();
         address removedNode = removedEntry.node;
@@ -551,12 +620,22 @@ contract JuriNetworkProxy is Ownable {
             .nodeForUserStates[_user]
             .wasAssignedToUser = false;
 
+        _decrementActivityCountForNode(removedNode);
+    }
+
+    function _addNewVerifierHashForUser(
+        address _node,
+        address _user,
+        uint256 _verifierHash
+    ) private {        
+        MaxHeapLibrary.heapStruct storage verifierHashesMaxHeap
+            = _getCurrentStateForUser(_user).verifierHashesMaxHeap;
+        verifierHashesMaxHeap.insert(_node, _verifierHash);
+
         stateForRound[roundIndex]
             .nodeStates[_node]
             .nodeForUserStates[_user]
             .wasAssignedToUser = true;
-
-        return removedNode;
     }
 }
 

@@ -1,22 +1,22 @@
 const { getGasResults, storeResults } = require('gastracker')
 
-const { setDefaultJuriAddress } = require('./defaults')
-const { deployJuriStakingPool } = require('./helpers')
+const { setDefaultJuriAddress } = require('./JuriStakingPool/defaults')
+const { deployJuriStakingPool } = require('./JuriStakingPool/helpers')
 const {
   itCorrectlyAddsOwnerFunds,
   itCorrectlyWithdrawsOwnerFunds,
   itSetsPoolDefinition,
-} = require('./simpleFunctionTests')
+} = require('./JuriStakingPool/simpleFunctionTests')
 
-const itRunsPoolRoundsCorrectly = require('./quickTest.test')
-const itAddsNewUsersCorrectly = require('./addUserInNextPeriod.test')
-const itRemovesNewUsersCorrectly = require('./removeUserInNextPeriod.test')
-const itAddsComplianceDataCorrectly = require('./addComplianceData.test')
-const itRunsFirstUpdateCorrectly = require('./firstUpdateStakeForNextXAmountOfUsers.test')
-const itRunsSecondUpdateCorrectly = require('./secondUpdateStakeForNextXAmountOfUsers.test')
-const itAddsMoreStakeCorrectly = require('./addMoreStake.test')
-const itWithdrawsStakeCorrectly = require('./withdraw.test')
-const itChecksContraintsOnOptingInOutOfStaking = require('./optInOutOfStaking.test.js')
+const itRunsPoolRoundsCorrectly = require('./JuriStakingPool/quickTest.test')
+const itAddsNewUsersCorrectly = require('./JuriStakingPool/addUserInNextPeriod.test')
+const itRemovesNewUsersCorrectly = require('./JuriStakingPool/removeUserInNextPeriod.test')
+const itAddsComplianceDataCorrectly = require('./JuriStakingPool/addComplianceData.test')
+const itRunsFirstUpdateCorrectly = require('./JuriStakingPool/firstUpdateStakeForNextXAmountOfUsers.test')
+const itRunsSecondUpdateCorrectly = require('./JuriStakingPool/secondUpdateStakeForNextXAmountOfUsers.test')
+const itAddsMoreStakeCorrectly = require('./JuriStakingPool/addMoreStake.test')
+const itWithdrawsStakeCorrectly = require('./JuriStakingPool/withdraw.test')
+const itChecksContraintsOnOptingInOutOfStaking = require('./JuriStakingPool/optInOutOfStaking.test.js')
 
 const itRunsTestsCorrectlyWithUsers = async ({ addresses, addressesToAdd }) => {
   itAddsNewUsersCorrectly({ addresses, addressesToAdd })

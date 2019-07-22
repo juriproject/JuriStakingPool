@@ -1,7 +1,7 @@
 const assert = require('assert')
 const HDWalletProvider = require('truffle-hdwallet-provider')
 
-const DEFAULT_GAS_PRICE_GWEI = 5
+const DEFAULT_GAS_PRICE_GWEI = 50
 const DEFAULT_MNEMONIC =
   'candy maple cake sugar pudding cream honey rich smooth crumble sweet treat'
 const GAS_LIMIT = 6.5e6
@@ -36,8 +36,8 @@ function truffleConfig({
       development: {
         host: urlDevelopment,
         port: portDevelopment,
-        gas,
-        gasPrice,
+        gasPrice: 0x1,
+        gas: 0x1fffffffffffff,
         network_id: '*',
       },
       mainnet: {
