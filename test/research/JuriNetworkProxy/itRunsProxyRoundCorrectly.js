@@ -183,7 +183,130 @@ const runFirstHalfOfRound = async ({
   }
 
   await increase(duration.days(7).add(duration.minutes(5)))
+
   for (let i = 0; i < nodes.length; i++) {
+    const currentHighestHash0 = await proxy.getCurrentHighestHashForUser(
+      users[0]
+    )
+    const verifierHash0 = [
+      Web3Utils.soliditySha3(
+        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+        nodes[0],
+        proofIndexes[0]
+      ),
+      Web3Utils.soliditySha3(
+        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+        nodes[1],
+        proofIndexes[0]
+      ),
+      Web3Utils.soliditySha3(
+        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+        nodes[2],
+        proofIndexes[0]
+      ),
+      Web3Utils.soliditySha3(
+        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+        nodes[3],
+        proofIndexes[0]
+      ),
+    ]
+    console.log({
+      currentHighestHash0: '0x' + currentHighestHash0.toString(16),
+      verifierHash0,
+    })
+
+    const currentHighestHash1 = await proxy.getCurrentHighestHashForUser(
+      users[1]
+    )
+    const verifierHash1 = [
+      Web3Utils.soliditySha3(
+        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+        nodes[0],
+        proofIndexes[1]
+      ),
+      Web3Utils.soliditySha3(
+        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+        nodes[1],
+        proofIndexes[1]
+      ),
+      Web3Utils.soliditySha3(
+        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+        nodes[2],
+        proofIndexes[1]
+      ),
+      Web3Utils.soliditySha3(
+        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+        nodes[3],
+        proofIndexes[1]
+      ),
+    ]
+    console.log({
+      currentHighestHash1: '0x' + currentHighestHash1.toString(16),
+      verifierHash1,
+    })
+
+    const currentHighestHash2 = await proxy.getCurrentHighestHashForUser(
+      users[2]
+    )
+    const verifierHash2 = [
+      Web3Utils.soliditySha3(
+        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+        nodes[0],
+        proofIndexes[2]
+      ),
+      Web3Utils.soliditySha3(
+        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+        nodes[1],
+        proofIndexes[2]
+      ),
+      Web3Utils.soliditySha3(
+        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+        nodes[2],
+        proofIndexes[2]
+      ),
+      Web3Utils.soliditySha3(
+        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+        nodes[3],
+        proofIndexes[2]
+      ),
+    ]
+    console.log({
+      currentHighestHash2: '0x' + currentHighestHash2.toString(16),
+      verifierHash2,
+    })
+
+    const currentHighestHash3 = await proxy.getCurrentHighestHashForUser(
+      users[3]
+    )
+    const verifierHash3 = [
+      Web3Utils.soliditySha3(
+        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+        nodes[0],
+        proofIndexes[3]
+      ),
+      Web3Utils.soliditySha3(
+        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+        nodes[1],
+        proofIndexes[3]
+      ),
+      Web3Utils.soliditySha3(
+        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+        nodes[2],
+        proofIndexes[3]
+      ),
+      Web3Utils.soliditySha3(
+        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+        nodes[3],
+        proofIndexes[3]
+      ),
+    ]
+
+    console.log({
+      currentHighestHash3: '0x' + currentHighestHash3.toString(16),
+      verifierHash3,
+    })
+
+    console.log({ i, nodes })
     await proxy.addWasCompliantDataCommitmentsForUsers(
       users,
       commitments,
@@ -201,6 +324,51 @@ const runFirstHalfOfRound = async ({
       { from: nodes[i] }
     )
   }
+}
+
+const runDissentRound = async ({
+  proxy,
+  dissenterNode,
+  commitments,
+  nodes,
+  randomNonces,
+  users,
+  wasCompliantData,
+}) => {
+  await increase(duration.hours(1).add(duration.minutes(5)))
+  await proxy.moveToDissentPeriod()
+
+  for (let i = 0; i < users.length; i++) {
+    const dissentedUser = users[i]
+    await proxy.dissentToAcceptedAnswer(dissentedUser, {
+      from: dissenterNode,
+    })
+  }
+
+  await increase(duration.hours(1).add(duration.minutes(5)))
+  await proxy.moveFromDissentToNextPeriod()
+
+  for (let i = 0; i < nodes.length; i++) {
+    await proxy.addDissentWasCompliantDataCommitmentsForUsers(
+      users,
+      commitments,
+      { from: nodes[i] }
+    )
+  }
+
+  await increase(duration.hours(1).add(duration.minutes(5)))
+
+  for (let i = 0; i < nodes.length; i++) {
+    await proxy.addDissentWasCompliantDataForUsers(
+      users,
+      wasCompliantData,
+      randomNonces,
+      { from: nodes[i] }
+    )
+  }
+
+  await increase(duration.hours(1).add(duration.minutes(5)))
+  await proxy.moveToSlashingPeriod()
 }
 
 const itRunsProxyRoundCorrectly = async addresses => {
@@ -325,7 +493,7 @@ const itRunsProxyRoundCorrectly = async addresses => {
       }
     })
 
-    it('runs the round correctly with incorrect dissent slashing', async () => {
+    it.only('runs the round correctly with incorrect dissent slashing', async () => {
       const nodes = [juriNode1, juriNode2, juriNode3, juriNode4]
       const users = [poolUser1, poolUser2, poolUser3, poolUser4]
       const wasCompliantData = [true, false, false, true]
@@ -335,7 +503,7 @@ const itRunsProxyRoundCorrectly = async addresses => {
         '0x68656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
         '0x78656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
       ]
-      const proofIndexes = [100, 200, 300, 400]
+      const proofIndexes = [10, 22, 32, 40]
       const commitments = [
         Web3Utils.soliditySha3(wasCompliantData[0], randomNonces[0]),
         Web3Utils.soliditySha3(wasCompliantData[1], randomNonces[1]),
@@ -353,55 +521,34 @@ const itRunsProxyRoundCorrectly = async addresses => {
         wasCompliantData,
       })
 
-      await increase(duration.hours(1).add(duration.minutes(5)))
-      await networkProxy.moveToDissentPeriod()
+      const dissentNodes = [juriNode5, juriNode6]
+      const dissentUsers = [poolUser1]
+      const dissentWasCompliantData = [wasCompliantData[0]]
+      const dissentRandomNonces = [
+        '0x68656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+      ]
+      const dissentCommitments = [
+        Web3Utils.soliditySha3(
+          dissentWasCompliantData[0],
+          dissentRandomNonces[0]
+        ),
+      ]
 
-      const dissentedUser = users[0]
-      await networkProxy.dissentToAcceptedAnswer(dissentedUser, {
-        from: nodes[0],
+      await runDissentRound({
+        proxy: networkProxy,
+        dissenterNode: nodes[0],
+        commitments: dissentCommitments,
+        nodes: dissentNodes,
+        randomNonces: dissentRandomNonces,
+        users: dissentUsers,
+        wasCompliantData: dissentWasCompliantData,
       })
 
-      const receivedDissentedUsers = await networkProxy.dissentedUsers(0)
-      expect(receivedDissentedUsers).to.equal(dissentedUser)
-
-      await increase(duration.hours(1).add(duration.minutes(5)))
-      await networkProxy.moveFromDissentToNextPeriod()
-
-      await networkProxy.addDissentWasCompliantDataCommitmentsForUsers(
-        [users[0]],
-        [commitments[0]],
-        [proofIndexes[0]],
-        { from: juriNode5 }
-      )
-      await networkProxy.addDissentWasCompliantDataCommitmentsForUsers(
-        [users[0]],
-        [commitments[0]],
-        [proofIndexes[0]],
-        { from: juriNode6 }
-      )
-
-      await increase(duration.hours(1).add(duration.minutes(5)))
-      await networkProxy.addDissentWasCompliantDataForUsers(
-        [users[0]],
-        [wasCompliantData[0]],
-        [randomNonces[0]],
-        { from: juriNode5 }
-      )
-      await networkProxy.addDissentWasCompliantDataForUsers(
-        [users[0]],
-        [wasCompliantData[0]],
-        [randomNonces[0]],
-        { from: juriNode6 }
-      )
-
-      await increase(duration.hours(1).add(duration.minutes(5)))
-      await networkProxy.moveToSlashingPeriod()
-
-      await printState({
+      /* await printState({
         proxy: networkProxy,
         nodes,
         users,
-      })
+      }) */
 
       const stakedBalanceToSlashBefore = await bonding.bondedStakes(nodes[0])
       const stakedBalanceSlasherBefore = await bonding.bondedStakes(nodes[1])
@@ -431,22 +578,33 @@ const itRunsProxyRoundCorrectly = async addresses => {
       await networkProxy.moveToNextRound()
     })
 
-    it.only('runs the round correctly with incorrect result slashing', async () => {
-      const nodes = [juriNode1, juriNode2, juriNode3, juriNode4]
-      const users = [poolUser1, poolUser2, poolUser3, poolUser4]
-      const wasCompliantData = [true, false, false, true]
+    it('runs the round correctly with incorrect result slashing', async () => {
+      // FIRST ROUND DATA
+      const nodes = [juriNode1, juriNode2]
+      const users = [poolUser1, poolUser2]
+      const wasCompliantData = [true, true]
       const randomNonces = [
         '0x48656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
         '0x58656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
-        '0x68656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
-        '0x78656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
       ]
-      const proofIndexes = [100, 200, 300, 400]
+      const proofIndexes = [100, 200]
       const commitments = [
         Web3Utils.soliditySha3(wasCompliantData[0], randomNonces[0]),
         Web3Utils.soliditySha3(wasCompliantData[1], randomNonces[1]),
-        Web3Utils.soliditySha3(wasCompliantData[2], randomNonces[2]),
-        Web3Utils.soliditySha3(wasCompliantData[3], randomNonces[3]),
+      ]
+
+      // DISSENT ROUND DATA
+      const dissentNodes = [juriNode3, juriNode4, juriNode5, juriNode6]
+      const dissentUsers = [poolUser1]
+      const dissentWasCompliantData = [false]
+      const dissentRandomNonces = [
+        '0x68656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+      ]
+      const dissentCommitments = [
+        Web3Utils.soliditySha3(
+          dissentWasCompliantData[0],
+          dissentRandomNonces[0]
+        ),
       ]
 
       await runFirstHalfOfRound({
@@ -459,70 +617,31 @@ const itRunsProxyRoundCorrectly = async addresses => {
         wasCompliantData,
       })
 
-      await increase(duration.hours(1).add(duration.minutes(5)))
-      await networkProxy.moveToDissentPeriod()
-
-      const dissentedUser = users[0]
-      await networkProxy.dissentToAcceptedAnswer(dissentedUser, {
-        from: nodes[0],
-      })
-
-      // TODO change
-
-      const receivedDissentedUsers = await networkProxy.dissentedUsers(0)
-      expect(receivedDissentedUsers).to.equal(dissentedUser)
-
-      await increase(duration.hours(1).add(duration.minutes(5)))
-      await networkProxy.moveFromDissentToNextPeriod()
-
-      await networkProxy.addDissentWasCompliantDataCommitmentsForUsers(
-        [users[0]],
-        [commitments[0]],
-        [proofIndexes[0]],
-        { from: juriNode5 }
-      )
-      await networkProxy.addDissentWasCompliantDataCommitmentsForUsers(
-        [users[0]],
-        [commitments[0]],
-        [proofIndexes[0]],
-        { from: juriNode6 }
-      )
-
-      await increase(duration.hours(1).add(duration.minutes(5)))
-      await networkProxy.addDissentWasCompliantDataForUsers(
-        [users[0]],
-        [wasCompliantData[0]],
-        [randomNonces[0]],
-        { from: juriNode5 }
-      )
-      await networkProxy.addDissentWasCompliantDataForUsers(
-        [users[0]],
-        [wasCompliantData[0]],
-        [randomNonces[0]],
-        { from: juriNode6 }
-      )
-
-      await increase(duration.hours(1).add(duration.minutes(5)))
-      await networkProxy.moveToSlashingPeriod()
-
-      await printState({
+      await runDissentRound({
         proxy: networkProxy,
-        nodes,
-        users,
+        dissenterNode: nodes[0],
+        commitments: dissentCommitments,
+        nodes: dissentNodes,
+        randomNonces: dissentRandomNonces,
+        users: dissentUsers,
+        wasCompliantData: dissentWasCompliantData,
       })
 
-      const stakedBalanceToSlashBefore = await bonding.bondedStakes(nodes[0])
-      const stakedBalanceSlasherBefore = await bonding.bondedStakes(nodes[1])
-      await bonding.slashStakeForIncorrectDissenting(nodes[0], users[0], {
-        from: nodes[1],
+      const slashedNode = nodes[0]
+      const slasherNode = juriNode3
+
+      const stakedBalanceToSlashBefore = await bonding.bondedStakes(slashedNode)
+      const stakedBalanceSlasherBefore = await bonding.bondedStakes(slasherNode)
+      await bonding.slashStakeForIncorrectResult(slashedNode, users[0], {
+        from: slasherNode,
       })
-      const stakedBalanceToSlashAfter = await bonding.bondedStakes(nodes[0])
-      const stakedBalanceSlasherAfter = await bonding.bondedStakes(nodes[1])
+      const stakedBalanceToSlashAfter = await bonding.bondedStakes(slashedNode)
+      const stakedBalanceSlasherAfter = await bonding.bondedStakes(slasherNode)
 
       expect(stakedBalanceToSlashAfter.newStake).to.be.bignumber.equal(
         stakedBalanceToSlashBefore.newStake.sub(
           stakedBalanceToSlashBefore.newStake
-            .mul(incorrectDissentPenalty)
+            .mul(incorrectResultPenalty)
             .div(new BN(100))
         )
       )
@@ -530,7 +649,7 @@ const itRunsProxyRoundCorrectly = async addresses => {
       expect(stakedBalanceSlasherAfter.newStake).to.be.bignumber.equal(
         stakedBalanceSlasherBefore.newStake.add(
           stakedBalanceToSlashBefore.newStake
-            .mul(incorrectDissentPenalty)
+            .mul(incorrectResultPenalty)
             .div(new BN(100))
         )
       )

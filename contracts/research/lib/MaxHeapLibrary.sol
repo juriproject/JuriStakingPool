@@ -13,6 +13,9 @@ library MaxHeapLibrary {
     }
     */
 
+    event BubbleStart(uint256 counter, uint256 currentIndex, uint256 heapLength);
+    event Bubble(uint256 counter, uint256 currentIndex);
+
     struct MaxHeapEntry {
         address node;
         uint256 value;
@@ -37,11 +40,12 @@ library MaxHeapLibrary {
         uint256 currentIndex = heap.elements.length.sub(1);
 
         // Bubble up the value until it reaches it's correct place (i.e. it is smaller than it's parent)
-        while(currentIndex > 1 && heap.elements[currentIndex.div(2)].value < heap.elements[currentIndex].value) {
+        while (currentIndex > 1 && heap.elements[currentIndex.div(2)].value < heap.elements[currentIndex].value) {
             // If the parent value is lower than our current value, we swap them
-            MaxHeapEntry memory entry1 = heap.elements[currentIndex.div(2)];
+            MaxHeapEntry memory heapEntry = _clone(heap.elements[currentIndex.div(2)]);
+
             heap.elements[currentIndex.div(2)] = newEntry;
-            heap.elements[currentIndex] = entry1;
+            heap.elements[currentIndex] = heapEntry;
 
             // change our current Index to go up to the parent
             currentIndex = currentIndex.div(2);
@@ -49,14 +53,14 @@ library MaxHeapLibrary {
     }
 
     // RemoveMax pops off the root element of the heap (the highest value here) and rebalances the heap
-    function removeMax(heapStruct storage heap) public returns (MaxHeapEntry storage){
+    function removeMax(heapStruct storage heap) public returns (address) {
         // Ensure the heap exists
         require(
             heap.elements.length > 1,
             "There are no elements in the heap to remove!"
         );
         // take the root value of the heap
-        MaxHeapEntry storage toReturn = heap.elements[1];
+        address removedNode = heap.elements[1].node;
 
         // Takes the last element of the array and put it at the root
         heap.elements[1] = heap.elements[heap.elements.length.sub(1)];
@@ -66,8 +70,16 @@ library MaxHeapLibrary {
         // Start at the top
         uint256 currentIndex = 1;
 
+        uint256 counter = 0;
+
+        emit BubbleStart(counter, currentIndex, heap.elements.length);
+
         // Bubble down
-        while(currentIndex.mul(2) < heap.elements.length.sub(1)) {
+        while (currentIndex.mul(2) < heap.elements.length.sub(1)) {
+            counter++;
+
+            emit Bubble(counter, currentIndex);
+
             // get the current index of the children
             uint256 j = currentIndex.mul(2);
 
@@ -82,21 +94,29 @@ library MaxHeapLibrary {
             }
 
             // compare the current parent value with the highest child, if the parent is greater, we're done
-            if(heap.elements[currentIndex].value > heap.elements[j].value) {
+            if (heap.elements[currentIndex].value > heap.elements[j].value) {
                 break;
             }
 
             // else swap the value
-            MaxHeapEntry memory entry1 = heap.elements[currentIndex];
-            heap.elements[currentIndex] = heap.elements[j];
-            heap.elements[currentIndex.div(2)] = entry1;
+            MaxHeapEntry memory entry1 = _clone(heap.elements[currentIndex]);
+            heap.elements[currentIndex] = _clone(heap.elements[j]);
+            heap.elements[j] = entry1;
 
             // and let's keep going down the heap
             currentIndex = j;
         }
 
+        if (currentIndex == 1 && heap.elements.length == 3) {
+            if (heap.elements[1].value < heap.elements[2].value) {
+                MaxHeapEntry memory entry1 = _clone(heap.elements[1]);
+                heap.elements[1] = _clone(heap.elements[2]);
+                heap.elements[2] = entry1;
+            }
+        }
+
         // finally, return the top of the heap
-        return toReturn;
+        return removedNode;
     }
 
 
@@ -118,5 +138,9 @@ library MaxHeapLibrary {
         }
 
         return heap.elements.length - 1;
+    }
+
+    function _clone(MaxHeapEntry memory from) internal pure returns (MaxHeapEntry memory) {
+        return MaxHeapEntry(from.node, from.value);
     }
 }

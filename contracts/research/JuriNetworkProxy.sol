@@ -12,6 +12,12 @@ contract JuriNetworkProxy is Ownable {
     using SafeMath for uint256;
     using MaxHeapLibrary for MaxHeapLibrary.heapStruct;
 
+    event RemovedMax(address user, address removedNode);
+    event AddedVerifierHash(address user, address node, bytes32 verifierHash);
+
+    event OLD_MAX(bytes32 maxVerifierHash);
+    event NEW_MAX(bytes32 maxVerifierHash);
+
     enum Stages {
         USER_ADDING_HEART_RATE_DATA,
         NODES_ADDING_RESULT_COMMITMENTS,
@@ -164,7 +170,8 @@ contract JuriNetworkProxy is Ownable {
         bonding.moveToNextRound(roundIndex);
     
         dissentedUsers = new address[](0);
-        nodeVerifierCount = bonding.totalNodesCount(roundIndex); // TODO .div(3);
+        // nodeVerifierCount = bonding.totalNodesCount(roundIndex).div(3);
+        nodeVerifierCount = bonding.stakingNodesAddressCount(roundIndex).div(3);
         totalJuriFees = token.balanceOf(address(this));
     }
 
@@ -226,11 +233,13 @@ contract JuriNetworkProxy is Ownable {
 
     function addDissentWasCompliantDataCommitmentsForUsers(
         address[] memory _users,
-        bytes32[] memory _wasCompliantDataCommitments,
-        uint256[] memory _proofIndices
+        bytes32[] memory _wasCompliantDataCommitments
+        
     ) public
         checkIfNextStage
         atStage(Stages.DISSENTS_NODES_ADDING_RESULT_COMMITMENTS) {
+        uint256[] memory _proofIndices = new uint256[](0);
+
         _addWasCompliantDataCommitmentsForUsers(
             _users,
             _wasCompliantDataCommitments,
@@ -380,7 +389,15 @@ contract JuriNetworkProxy is Ownable {
         address _node,
         address _user
     ) public view returns (bool) {
-        return stateForRound[_roundIndex].nodeStates[_user].nodeForUserStates[_node].givenNodeResult;
+        return stateForRound[_roundIndex].nodeStates[_node].nodeForUserStates[_user].givenNodeResult;
+    }
+
+    function getWasAssignedToUser(
+        uint256 _roundIndex,
+        address _node,
+        address _user
+    ) public view returns (bool) {
+        return stateForRound[_roundIndex].nodeStates[_node].nodeForUserStates[_user].wasAssignedToUser;
     }
 
     function getHasDissented(uint256 _roundIndex, address _node, address _user)
@@ -455,11 +472,9 @@ contract JuriNetworkProxy is Ownable {
     ) private {
         address node = msg.sender;
 
-
         for (uint256 i = 0; i < _users.length; i++) {
             address user = _users[i];
             bytes32 wasCompliantCommitment = _wasCompliantDataCommitments[i];
-            uint256 proofIndex = _proofIndices[i];
 
             require(
                 _getCurrentStateForNodeForUser(node, user).complianceDataCommitment == 0x0,
@@ -468,7 +483,7 @@ contract JuriNetworkProxy is Ownable {
 
             if (!_getCurrentStateForUser(user).dissented) {
                 require(
-                    _verifyValidComplianceAddition(user, node, proofIndex),
+                    _verifyValidComplianceAddition(user, node, _proofIndices[i]),
                     'Node not verified to add data!'
                 );
             }
@@ -582,13 +597,30 @@ contract JuriNetworkProxy is Ownable {
             _addNewVerifierHashForUser(_node, _user, verifierHash);
 
             if (verifierHashesMaxHeap.getLength() > nodeVerifierCount) {
+                emit OLD_MAX(bytes32(_getCurrentHighestHashForUser(_user)));
                 _removeMaxVerifierHashForUser(_user);
+                emit NEW_MAX(bytes32(_getCurrentHighestHashForUser(_user)));
             }
 
             return true;
         }
 
         return false;
+    }
+
+    function getCurrentHighestHashForUser(address _user)
+        public
+        view
+        returns (uint256) {
+        MaxHeapLibrary.heapStruct storage verifierHashesMaxHeap
+            = _getCurrentStateForUser(_user).verifierHashesMaxHeap;
+
+        uint256 hashesCount = verifierHashesMaxHeap.getLength();
+        uint256 highestHash = hashesCount > 0
+            ? verifierHashesMaxHeap.getMax().value
+            : 0;
+
+        return highestHash;
     }
 
     function _getCurrentHighestHashForUser(address _user)
@@ -611,9 +643,9 @@ contract JuriNetworkProxy is Ownable {
     ) private {
         MaxHeapLibrary.heapStruct storage verifierHashesMaxHeap
             = _getCurrentStateForUser(_user).verifierHashesMaxHeap;
-        MaxHeapLibrary.MaxHeapEntry memory removedEntry
-            = verifierHashesMaxHeap.removeMax();
-        address removedNode = removedEntry.node;
+        address removedNode = verifierHashesMaxHeap.removeMax();
+
+        emit RemovedMax(_user, removedNode);
 
         stateForRound[roundIndex]
             .nodeStates[removedNode]
@@ -631,6 +663,8 @@ contract JuriNetworkProxy is Ownable {
         MaxHeapLibrary.heapStruct storage verifierHashesMaxHeap
             = _getCurrentStateForUser(_user).verifierHashesMaxHeap;
         verifierHashesMaxHeap.insert(_node, _verifierHash);
+
+        emit AddedVerifierHash(_user, _node, bytes32(_verifierHash));
 
         stateForRound[roundIndex]
             .nodeStates[_node]

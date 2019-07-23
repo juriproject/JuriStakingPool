@@ -35,6 +35,7 @@ contract JuriBonding is Ownable {
     LinkedListLib.LinkedList stakingNodes;
 
     mapping (address => AllowedWithdrawalAfter) public allowedWithdrawalAmounts;
+    mapping (uint256 => uint256) public stakingNodesAddressCount;
     mapping (uint256 => uint256) public totalNodesCount;
     mapping (address => ValidStakeAfter) public bondedStakes;
     mapping (uint256 => mapping (uint256 => bool)) public hasBeenSlashed;
@@ -197,6 +198,10 @@ contract JuriBonding is Ownable {
 
         if (oldNodeStake == 0) {
             stakingNodes.insert(HEAD, msg.sender, PREV);
+            stakingNodesAddressCount[nextRoundIndex]
+                = stakingNodesAddressCount[nextRoundIndex] > 0
+                    ? stakingNodesAddressCount[nextRoundIndex].add(1)
+                    : stakingNodesAddressCount[roundIndex].add(1);
         }
 
         uint256 newNodeStake = oldNodeStake.add(_amount);
@@ -272,6 +277,11 @@ contract JuriBonding is Ownable {
 
         if (newNodeStake == 0) {
             stakingNodes.remove(msg.sender);
+
+            stakingNodesAddressCount[nextRoundIndex]
+                = stakingNodesAddressCount[nextRoundIndex] > 0
+                    ? stakingNodesAddressCount[nextRoundIndex].sub(1)
+                    : stakingNodesAddressCount[roundIndex].sub(1);
         }
     }
 
@@ -279,6 +289,10 @@ contract JuriBonding is Ownable {
         totalNodesCount[_newRoundIndex] = totalNodesCount[_newRoundIndex] > 0
             ? totalNodesCount[_newRoundIndex]
             : totalNodesCount[_newRoundIndex.sub(1)];
+        stakingNodesAddressCount[_newRoundIndex]
+            = stakingNodesAddressCount[_newRoundIndex] > 0
+                ? stakingNodesAddressCount[_newRoundIndex]
+                : stakingNodesAddressCount[_newRoundIndex.sub(1)];
     }
 
     function getBondedStakeOfNode(

@@ -159,7 +159,7 @@ contract ERC20 is IERC20 {
 
         _balances[from] = _balances[from].sub(value);
         _balances[to] = _balances[to].add(value);
-        emit Transfer(from, to, value);
+        // emit Transfer(from, to, value);
     }
 
     /**
@@ -174,7 +174,7 @@ contract ERC20 is IERC20 {
 
         _totalSupply = _totalSupply.add(value);
         _balances[account] = _balances[account].add(value);
-        emit Transfer(address(0), account, value);
+        // emit Transfer(address(0), account, value);
     }
 
     /**
@@ -188,7 +188,7 @@ contract ERC20 is IERC20 {
 
         _totalSupply = _totalSupply.sub(value);
         _balances[account] = _balances[account].sub(value);
-        emit Transfer(account, address(0), value);
+        // emit Transfer(account, address(0), value);
     }
 
     /**
@@ -202,7 +202,7 @@ contract ERC20 is IERC20 {
         require(owner != address(0), 'Cannot approve from 0 address!');
 
         _allowed[owner][spender] = value;
-        emit Approval(owner, spender, value);
+        // emit Approval(owner, spender, value);
     }
 
     /**
