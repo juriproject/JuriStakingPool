@@ -387,7 +387,7 @@ const itRunsProxyRoundCorrectly = async addresses => {
       }
     })
 
-    it.only('runs the round correctly with offline slashing', async () => {
+    it('runs the round correctly with offline slashing', async () => {
       const nodes = [juriNode1, juriNode2, juriNode3, juriNode4]
       const users = [poolUser1, poolUser2, poolUser3, poolUser4]
       const wasCompliantData = [true, false, false, true]
@@ -530,11 +530,11 @@ const itRunsProxyRoundCorrectly = async addresses => {
         )
       )
 
-      await printState({
+      /* await printState({
         proxy: networkProxy,
         nodes,
         users,
-      })
+      }) */
 
       await increase(duration.hours(1).add(duration.minutes(5)))
       await networkProxy.moveToNextRound()
