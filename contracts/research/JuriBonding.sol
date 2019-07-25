@@ -30,6 +30,13 @@ contract JuriBonding is Ownable {
         uint256 minRoundIndex;
     }
 
+    event SlashedStake(
+        uint256 roundIndex,
+        address from,
+        address to,
+        uint256 penalty
+    );
+
     JuriNetworkProxy public proxy;
     IERC20 public token;
     LinkedListLib.LinkedList stakingNodes;
@@ -38,7 +45,7 @@ contract JuriBonding is Ownable {
     mapping (uint256 => uint256) public stakingNodesAddressCount;
     mapping (uint256 => uint256) public totalNodesCount;
     mapping (address => ValidStakeAfter) public bondedStakes;
-    mapping (uint256 => mapping (uint256 => bool)) public hasBeenSlashed;
+    mapping (uint256 => mapping (address => mapping (uint256 => bool))) public hasBeenSlashed;
     mapping (uint256 => mapping (address => bool)) public changedStakeInRound;
     
     uint256 public totalBonded;
@@ -67,13 +74,14 @@ contract JuriBonding is Ownable {
     }
 
     function slashStakeForBeingOffline(address _toSlashNode, address _dissentedUser) public {
+        require(proxy.currentStage() == JuriNetworkProxy.Stages.SLASHING_PERIOD, 'Proxy must be in slashing stage!');
         uint256 roundIndex = proxy.roundIndex();
 
         require(
-            !hasBeenSlashed[roundIndex][OFFLINE_SLASH],
+            !hasBeenSlashed[roundIndex][_dissentedUser][OFFLINE_SLASH],
             "The node has already been slashed for being offline!"
         );
-        hasBeenSlashed[roundIndex][OFFLINE_SLASH] = true;
+        hasBeenSlashed[roundIndex][_dissentedUser][OFFLINE_SLASH] = true;
 
         bool userWasDissented = proxy.getDissented(roundIndex, _dissentedUser);
         bytes32 commitment = proxy.getUserComplianceDataCommitment(roundIndex, _toSlashNode, _dissentedUser);
@@ -88,13 +96,14 @@ contract JuriBonding is Ownable {
     }
 
     function slashStakeForNotRevealing(address _toSlashNode, address _notRevealedUser) public {
+        require(proxy.currentStage() == JuriNetworkProxy.Stages.SLASHING_PERIOD, 'Proxy must be in slashing stage!');
         uint256 roundIndex = proxy.roundIndex();
 
         require(
-            !hasBeenSlashed[roundIndex][NOT_REVEAL_SLASH],
+            !hasBeenSlashed[roundIndex][_notRevealedUser][NOT_REVEAL_SLASH],
             "The node has already been slashed for not revealing!"
         );
-        hasBeenSlashed[roundIndex][NOT_REVEAL_SLASH] = true;
+        hasBeenSlashed[roundIndex][_notRevealedUser][NOT_REVEAL_SLASH] = true;
 
         bytes32 commitment = proxy.getUserComplianceDataCommitment(roundIndex, _toSlashNode, _notRevealedUser);
 
@@ -111,13 +120,14 @@ contract JuriBonding is Ownable {
     }
 
     function slashStakeForIncorrectResult(address _toSlashNode, address _incorrectResultUser) public {
+        require(proxy.currentStage() == JuriNetworkProxy.Stages.SLASHING_PERIOD, 'Proxy must be in slashing stage!');
         uint256 roundIndex = proxy.roundIndex();
 
         require(
-            !hasBeenSlashed[roundIndex][INCORRECT_RESULT_SLASH],
+            !hasBeenSlashed[roundIndex][_incorrectResultUser][INCORRECT_RESULT_SLASH],
             "The node has already been slashed for an incorrect result!"
         );
-        hasBeenSlashed[roundIndex][INCORRECT_RESULT_SLASH] = true;
+        hasBeenSlashed[roundIndex][_incorrectResultUser][INCORRECT_RESULT_SLASH] = true;
 
         bool givenAnswer = proxy.getGivenNodeResult(roundIndex, _toSlashNode, _incorrectResultUser);
         bool acceptedAnswer = proxy.getUserComplianceData(roundIndex, _incorrectResultUser) > 0;
@@ -131,13 +141,14 @@ contract JuriBonding is Ownable {
     }
 
     function slashStakeForIncorrectDissenting(address _toSlashNode, address _incorrectDissentUser) public {
+        require(proxy.currentStage() == JuriNetworkProxy.Stages.SLASHING_PERIOD, 'Proxy must be in slashing stage!');
         uint256 roundIndex = proxy.roundIndex();
 
         require(
-            !hasBeenSlashed[roundIndex][INCORRECT_DISSENT_SLASH],
+            !hasBeenSlashed[roundIndex][_incorrectDissentUser][INCORRECT_DISSENT_SLASH],
             "The node has already been slashed for an incorrect dissent!"
         );
-        hasBeenSlashed[roundIndex][INCORRECT_DISSENT_SLASH] = true;
+        hasBeenSlashed[roundIndex][_incorrectDissentUser][INCORRECT_DISSENT_SLASH] = true;
 
         bool hasDissented = proxy.getHasDissented(roundIndex, _toSlashNode, _incorrectDissentUser);
         bool previousAnswer = proxy.getComplianceDataBeforeDissent(roundIndex, _incorrectDissentUser) > 0;
@@ -345,5 +356,7 @@ contract JuriBonding is Ownable {
             = ValidStakeAfter(stakeFrom, newStakeFrom, nextRoundIndex);
         bondedStakes[_to]
             = ValidStakeAfter(stakeTo, newStakeTo, nextRoundIndex);
+
+        emit SlashedStake(_roundIndex, _from, _to, _penalty);
     }
 }

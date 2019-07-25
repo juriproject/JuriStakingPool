@@ -75,10 +75,13 @@ contract JuriNetworkProxy is Ownable {
         uint256 timeForStage = timesForStages[uint256(currentStage)];
 
         if (currentStage == Stages.SLASHING_PERIOD) {
-            if (now.sub(startTime) > roundIndex.mul(timeForStage)) {
+            uint256 secondsSinceStart = now.sub(startTime);
+            uint256 secondsSinceStartNextPeriod = roundIndex.mul(timeForStage);
+
+            if (secondsSinceStart >= secondsSinceStartNextPeriod) {
                 _moveToNextStage();
             }
-        } else if (now > lastStageUpdate.add(timeForStage)) {
+        } else if (now >= lastStageUpdate.add(timeForStage)) {
             _moveToNextStage();
         }
 

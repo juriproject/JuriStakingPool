@@ -9,6 +9,16 @@ const SkaleFileStorageMock = artifacts.require('./SkaleFileStorageMock.sol')
 
 const { duration, increase } = time
 
+const StageMapping = {
+  '0': 'USER_ADDING_HEART_RATE_DATA',
+  '1': 'NODES_ADDING_RESULT_COMMITMENTS',
+  '2': 'NODES_ADDING_RESULT_REVEALS',
+  '3': 'DISSENTING_PERIOD',
+  '4': 'DISSENTS_NODES_ADDING_RESULT_COMMITMENTS',
+  '5': 'DISSENTS_NODES_ADDING_RESULT_REVEALS',
+  '6': 'SLASHING_PERIOD',
+}
+
 const removeEmptyKeys = obj => {
   for (var propName in obj) {
     if (
@@ -105,7 +115,7 @@ const printState = async ({ proxy, nodes, users }) => {
   const nodeVerifierCount = await proxy.nodeVerifierCount()
 
   console.log('******************* GENERAL STATE *********************')
-  console.log({ currentStage: currentStage.toString() })
+  console.log({ currentStage: StageMapping[currentStage.toString()] })
 
   const result = {
     roundIndex: roundIndex.toString(),
@@ -173,6 +183,7 @@ const runFirstHalfOfRound = async ({
   randomNonces,
   users,
   wasCompliantData,
+  notRevealNodes = [],
 }) => {
   for (let i = 0; i < users.length; i++) {
     await proxy.addHeartRateDateForPoolUser(
@@ -185,128 +196,6 @@ const runFirstHalfOfRound = async ({
   await increase(duration.days(7).add(duration.minutes(5)))
 
   for (let i = 0; i < nodes.length; i++) {
-    const currentHighestHash0 = await proxy.getCurrentHighestHashForUser(
-      users[0]
-    )
-    const verifierHash0 = [
-      Web3Utils.soliditySha3(
-        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
-        nodes[0],
-        proofIndexes[0]
-      ),
-      Web3Utils.soliditySha3(
-        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
-        nodes[1],
-        proofIndexes[0]
-      ),
-      Web3Utils.soliditySha3(
-        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
-        nodes[2],
-        proofIndexes[0]
-      ),
-      Web3Utils.soliditySha3(
-        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
-        nodes[3],
-        proofIndexes[0]
-      ),
-    ]
-    console.log({
-      currentHighestHash0: '0x' + currentHighestHash0.toString(16),
-      verifierHash0,
-    })
-
-    const currentHighestHash1 = await proxy.getCurrentHighestHashForUser(
-      users[1]
-    )
-    const verifierHash1 = [
-      Web3Utils.soliditySha3(
-        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
-        nodes[0],
-        proofIndexes[1]
-      ),
-      Web3Utils.soliditySha3(
-        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
-        nodes[1],
-        proofIndexes[1]
-      ),
-      Web3Utils.soliditySha3(
-        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
-        nodes[2],
-        proofIndexes[1]
-      ),
-      Web3Utils.soliditySha3(
-        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
-        nodes[3],
-        proofIndexes[1]
-      ),
-    ]
-    console.log({
-      currentHighestHash1: '0x' + currentHighestHash1.toString(16),
-      verifierHash1,
-    })
-
-    const currentHighestHash2 = await proxy.getCurrentHighestHashForUser(
-      users[2]
-    )
-    const verifierHash2 = [
-      Web3Utils.soliditySha3(
-        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
-        nodes[0],
-        proofIndexes[2]
-      ),
-      Web3Utils.soliditySha3(
-        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
-        nodes[1],
-        proofIndexes[2]
-      ),
-      Web3Utils.soliditySha3(
-        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
-        nodes[2],
-        proofIndexes[2]
-      ),
-      Web3Utils.soliditySha3(
-        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
-        nodes[3],
-        proofIndexes[2]
-      ),
-    ]
-    console.log({
-      currentHighestHash2: '0x' + currentHighestHash2.toString(16),
-      verifierHash2,
-    })
-
-    const currentHighestHash3 = await proxy.getCurrentHighestHashForUser(
-      users[3]
-    )
-    const verifierHash3 = [
-      Web3Utils.soliditySha3(
-        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
-        nodes[0],
-        proofIndexes[3]
-      ),
-      Web3Utils.soliditySha3(
-        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
-        nodes[1],
-        proofIndexes[3]
-      ),
-      Web3Utils.soliditySha3(
-        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
-        nodes[2],
-        proofIndexes[3]
-      ),
-      Web3Utils.soliditySha3(
-        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
-        nodes[3],
-        proofIndexes[3]
-      ),
-    ]
-
-    console.log({
-      currentHighestHash3: '0x' + currentHighestHash3.toString(16),
-      verifierHash3,
-    })
-
-    console.log({ i, nodes })
     await proxy.addWasCompliantDataCommitmentsForUsers(
       users,
       commitments,
@@ -317,12 +206,13 @@ const runFirstHalfOfRound = async ({
 
   await increase(duration.hours(1).add(duration.minutes(5)))
   for (let i = 0; i < nodes.length; i++) {
-    await proxy.addWasCompliantDataForUsers(
-      users,
-      wasCompliantData,
-      randomNonces,
-      { from: nodes[i] }
-    )
+    if (!notRevealNodes.includes(nodes[i]))
+      await proxy.addWasCompliantDataForUsers(
+        users,
+        wasCompliantData,
+        randomNonces,
+        { from: nodes[i] }
+      )
   }
 }
 
@@ -383,14 +273,18 @@ const itRunsProxyRoundCorrectly = async addresses => {
       juriNode5,
       juriNode6,
       networkProxy,
+      notRevealPenalty,
       poolUser1,
       poolUser2,
       poolUser3,
       poolUser4,
       skaleFileStorage,
+      offlinePenalty,
       token
 
     beforeEach(async () => {
+      offlinePenalty = new BN(10)
+      notRevealPenalty = new BN(20)
       incorrectResultPenalty = new BN(35)
       incorrectDissentPenalty = new BN(40)
       skaleFileStorage = await SkaleFileStorageMock.new()
@@ -406,8 +300,8 @@ const itRunsProxyRoundCorrectly = async addresses => {
         duration.hours(1),
         duration.hours(1),
         ether('1000'),
-        10,
-        20,
+        offlinePenalty,
+        notRevealPenalty,
         incorrectResultPenalty,
         incorrectDissentPenalty
       )
@@ -458,7 +352,7 @@ const itRunsProxyRoundCorrectly = async addresses => {
         '0x68656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
         '0x78656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
       ]
-      const proofIndexes = [100, 200, 300, 400]
+      const proofIndexes = [10, 22, 32, 40]
       const commitments = [
         Web3Utils.soliditySha3(wasCompliantData[0], randomNonces[0]),
         Web3Utils.soliditySha3(wasCompliantData[1], randomNonces[1]),
@@ -493,7 +387,160 @@ const itRunsProxyRoundCorrectly = async addresses => {
       }
     })
 
-    it.only('runs the round correctly with incorrect dissent slashing', async () => {
+    it.only('runs the round correctly with offline slashing', async () => {
+      const nodes = [juriNode1, juriNode2, juriNode3, juriNode4]
+      const users = [poolUser1, poolUser2, poolUser3, poolUser4]
+      const wasCompliantData = [true, false, false, true]
+      const randomNonces = [
+        '0x48656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+        '0x58656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+        '0x68656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+        '0x78656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+      ]
+      const proofIndexes = [10, 22, 32, 40]
+      const commitments = [
+        Web3Utils.soliditySha3(wasCompliantData[0], randomNonces[0]),
+        Web3Utils.soliditySha3(wasCompliantData[1], randomNonces[1]),
+        Web3Utils.soliditySha3(wasCompliantData[2], randomNonces[2]),
+        Web3Utils.soliditySha3(wasCompliantData[3], randomNonces[3]),
+      ]
+
+      await runFirstHalfOfRound({
+        proxy: networkProxy,
+        commitments,
+        nodes,
+        proofIndexes,
+        randomNonces,
+        users,
+        wasCompliantData,
+      })
+
+      const dissentNodes = [juriNode5]
+      const dissentUsers = [poolUser1]
+      const dissentWasCompliantData = [wasCompliantData[0]]
+      const dissentRandomNonces = [
+        '0x68656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+      ]
+      const dissentCommitments = [
+        Web3Utils.soliditySha3(
+          dissentWasCompliantData[0],
+          dissentRandomNonces[0]
+        ),
+      ]
+
+      await runDissentRound({
+        proxy: networkProxy,
+        dissenterNode: nodes[0],
+        commitments: dissentCommitments,
+        nodes: dissentNodes,
+        randomNonces: dissentRandomNonces,
+        users: dissentUsers,
+        wasCompliantData: dissentWasCompliantData,
+      })
+
+      /* await printState({
+        proxy: networkProxy,
+        nodes,
+        users,
+      }) */
+
+      const stakedBalanceToSlashBefore = await bonding.bondedStakes(juriNode6)
+      const stakedBalanceSlasherBefore = await bonding.bondedStakes(nodes[1])
+      await bonding.slashStakeForBeingOffline(juriNode6, users[0], {
+        from: nodes[1],
+      })
+      const stakedBalanceToSlashAfter = await bonding.bondedStakes(juriNode6)
+      const stakedBalanceSlasherAfter = await bonding.bondedStakes(nodes[1])
+
+      expect(stakedBalanceToSlashAfter.newStake).to.be.bignumber.equal(
+        stakedBalanceToSlashBefore.newStake.sub(
+          stakedBalanceToSlashBefore.newStake
+            .mul(offlinePenalty)
+            .div(new BN(100))
+        )
+      )
+
+      expect(stakedBalanceSlasherAfter.newStake).to.be.bignumber.equal(
+        stakedBalanceSlasherBefore.newStake.add(
+          stakedBalanceToSlashBefore.newStake
+            .mul(offlinePenalty)
+            .div(new BN(100))
+        )
+      )
+
+      await increase(duration.hours(1).add(duration.minutes(5)))
+      await networkProxy.moveToNextRound()
+    })
+
+    it('runs the round correctly with not reveal slashing', async () => {
+      const nodes = [juriNode1, juriNode2, juriNode3, juriNode4]
+      const users = [poolUser1, poolUser2, poolUser3, poolUser4]
+      const wasCompliantData = [true, false, false, true]
+      const randomNonces = [
+        '0x48656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+        '0x58656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+        '0x68656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+        '0x78656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+      ]
+      const proofIndexes = [10, 22, 32, 40]
+      const commitments = [
+        Web3Utils.soliditySha3(wasCompliantData[0], randomNonces[0]),
+        Web3Utils.soliditySha3(wasCompliantData[1], randomNonces[1]),
+        Web3Utils.soliditySha3(wasCompliantData[2], randomNonces[2]),
+        Web3Utils.soliditySha3(wasCompliantData[3], randomNonces[3]),
+      ]
+
+      await runFirstHalfOfRound({
+        proxy: networkProxy,
+        commitments,
+        nodes,
+        proofIndexes,
+        randomNonces,
+        users,
+        wasCompliantData,
+        notRevealNodes: [nodes[0]],
+      })
+
+      await increase(duration.hours(1).add(duration.minutes(5)))
+      await networkProxy.moveToDissentPeriod()
+      await increase(duration.hours(1).add(duration.minutes(5)))
+      await networkProxy.moveFromDissentToNextPeriod()
+
+      const stakedBalanceToSlashBefore = await bonding.bondedStakes(nodes[0])
+      const stakedBalanceSlasherBefore = await bonding.bondedStakes(nodes[1])
+      await bonding.slashStakeForNotRevealing(nodes[0], users[0], {
+        from: nodes[1],
+      })
+      const stakedBalanceToSlashAfter = await bonding.bondedStakes(nodes[0])
+      const stakedBalanceSlasherAfter = await bonding.bondedStakes(nodes[1])
+
+      expect(stakedBalanceToSlashAfter.newStake).to.be.bignumber.equal(
+        stakedBalanceToSlashBefore.newStake.sub(
+          stakedBalanceToSlashBefore.newStake
+            .mul(notRevealPenalty)
+            .div(new BN(100))
+        )
+      )
+
+      expect(stakedBalanceSlasherAfter.newStake).to.be.bignumber.equal(
+        stakedBalanceSlasherBefore.newStake.add(
+          stakedBalanceToSlashBefore.newStake
+            .mul(notRevealPenalty)
+            .div(new BN(100))
+        )
+      )
+
+      await printState({
+        proxy: networkProxy,
+        nodes,
+        users,
+      })
+
+      await increase(duration.hours(1).add(duration.minutes(5)))
+      await networkProxy.moveToNextRound()
+    })
+
+    it('runs the round correctly with incorrect dissent slashing', async () => {
       const nodes = [juriNode1, juriNode2, juriNode3, juriNode4]
       const users = [poolUser1, poolUser2, poolUser3, poolUser4]
       const wasCompliantData = [true, false, false, true]
@@ -661,3 +708,123 @@ const itRunsProxyRoundCorrectly = async addresses => {
 }
 
 module.exports = itRunsProxyRoundCorrectly
+
+/* const currentHighestHash0 = await proxy.getCurrentHighestHashForUser(
+  users[0]
+)
+const verifierHash0 = [
+  Web3Utils.soliditySha3(
+    '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+    nodes[0],
+    proofIndexes[0]
+  ),
+  Web3Utils.soliditySha3(
+    '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+    nodes[1],
+    proofIndexes[0]
+  ),
+  Web3Utils.soliditySha3(
+    '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+    nodes[2],
+    proofIndexes[0]
+  ),
+  Web3Utils.soliditySha3(
+    '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+    nodes[3],
+    proofIndexes[0]
+  ),
+]
+console.log({
+  currentHighestHash0: '0x' + currentHighestHash0.toString(16),
+  verifierHash0,
+})
+
+const currentHighestHash1 = await proxy.getCurrentHighestHashForUser(
+  users[1]
+)
+const verifierHash1 = [
+  Web3Utils.soliditySha3(
+    '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+    nodes[0],
+    proofIndexes[1]
+  ),
+  Web3Utils.soliditySha3(
+    '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+    nodes[1],
+    proofIndexes[1]
+  ),
+  Web3Utils.soliditySha3(
+    '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+    nodes[2],
+    proofIndexes[1]
+  ),
+  Web3Utils.soliditySha3(
+    '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+    nodes[3],
+    proofIndexes[1]
+  ),
+]
+console.log({
+  currentHighestHash1: '0x' + currentHighestHash1.toString(16),
+  verifierHash1,
+})
+
+const currentHighestHash2 = await proxy.getCurrentHighestHashForUser(
+  users[2]
+)
+const verifierHash2 = [
+  Web3Utils.soliditySha3(
+    '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+    nodes[0],
+    proofIndexes[2]
+  ),
+  Web3Utils.soliditySha3(
+    '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+    nodes[1],
+    proofIndexes[2]
+  ),
+  Web3Utils.soliditySha3(
+    '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+    nodes[2],
+    proofIndexes[2]
+  ),
+  Web3Utils.soliditySha3(
+    '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+    nodes[3],
+    proofIndexes[2]
+  ),
+]
+console.log({
+  currentHighestHash2: '0x' + currentHighestHash2.toString(16),
+  verifierHash2,
+})
+
+const currentHighestHash3 = await proxy.getCurrentHighestHashForUser(
+  users[3]
+)
+const verifierHash3 = [
+  Web3Utils.soliditySha3(
+    '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+    nodes[0],
+    proofIndexes[3]
+  ),
+  Web3Utils.soliditySha3(
+    '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+    nodes[1],
+    proofIndexes[3]
+  ),
+  Web3Utils.soliditySha3(
+    '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+    nodes[2],
+    proofIndexes[3]
+  ),
+  Web3Utils.soliditySha3(
+    '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+    nodes[3],
+    proofIndexes[3]
+  ),
+]
+console.log({
+  currentHighestHash3: '0x' + currentHighestHash3.toString(16),
+  verifierHash3,
+}) */
