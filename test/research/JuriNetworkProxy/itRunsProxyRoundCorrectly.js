@@ -169,9 +169,9 @@ const printState = async ({ proxy, nodes, users }) => {
 
 const runSetupRound = async ({ node, proxy, user }) => {
   await proxy.addHeartRateDateForPoolUser(
-    user,
     '0x48656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
-    '0x02163123/123-heartRateData.xml'
+    '0x02163123/123-heartRateData.xml',
+    { from: user }
   )
 
   await increase(duration.days(7))

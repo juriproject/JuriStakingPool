@@ -199,7 +199,6 @@ contract JuriNetworkProxy is Ownable {
     }
 
     function addHeartRateDateForPoolUser(
-        address _user, // TODO make msg.sender
         bytes32 _userWorkoutSignature,
         string memory _heartRateDataStoragePath
     ) public checkIfNextStage atStage(Stages.USER_ADDING_HEART_RATE_DATA) {
@@ -213,11 +212,11 @@ contract JuriNetworkProxy is Ownable {
         );
 
         stateForRound[roundIndex]
-            .userStates[_user]
+            .userStates[msg.sender]
             .userWorkoutSignature = _userWorkoutSignature;
 
         stateForRound[roundIndex]
-            .userStates[_user]
+            .userStates[msg.sender]
             .userHeartRateDataStoragePath = _heartRateDataStoragePath;
     }
 
