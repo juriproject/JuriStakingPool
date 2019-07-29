@@ -317,6 +317,24 @@ const runFirstHalfOfRound = async ({
         users,
       })
     } else {
+      /* const currentLowestHashes = [
+        await proxy.getUserWorkAssignmentHashes(2, users[0]),
+        await proxy.getUserWorkAssignmentHashes(2, users[1]),
+        await proxy.getUserWorkAssignmentHashes(2, users[2]),
+        await proxy.getUserWorkAssignmentHashes(2, users[3]),
+      ].map(hashList =>
+        hashList.map(hashBN => '0x' + hashBN.toString(16).padStart(64, '0'))
+      )
+
+      const newToAddHashes = proofIndexes[i].map(proofIndex =>
+        Web3Utils.soliditySha3(
+          '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+          nodes[i],
+          proofIndex
+        )
+      )
+
+      console.log({ currentLowestHashes, newToAddHashes }) */
       await proxy.addWasCompliantDataCommitmentsForUsers(
         users,
         commitments,
@@ -544,7 +562,7 @@ const itRunsProxyRoundCorrectly = async addresses => {
       }
     })
 
-    it.only('runs the round correctly with multiple proof indexes per node', async () => {
+    it('runs the round correctly with multiple proof indexes per node', async () => {
       const users = [poolUser1, poolUser1, poolUser2]
 
       for (let i = 1; i < users.length; i++) {
@@ -579,9 +597,9 @@ const itRunsProxyRoundCorrectly = async addresses => {
 
       await increase(duration.hours(1).add(duration.minutes(5)))
       await networkProxy.addWasCompliantDataForUsers(
-        users,
-        wasCompliantData,
-        randomNonces,
+        users.slice(1),
+        wasCompliantData.slice(1),
+        randomNonces.slice(1),
         { from: juriNode1 }
       )
 
@@ -618,7 +636,12 @@ const itRunsProxyRoundCorrectly = async addresses => {
         '0x68656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
         '0x78656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
       ]
-      const proofIndexes = [10, 22, 32, 40]
+      const proofIndexes = [
+        [1, 2, 3, 4],
+        [1, 2, 3, 4],
+        [1, 2, 3, 4],
+        [14, 24, 32, 4],
+      ]
       const commitments = [
         Web3Utils.soliditySha3(wasCompliantData[0], randomNonces[0]),
         Web3Utils.soliditySha3(wasCompliantData[1], randomNonces[1]),
@@ -630,7 +653,7 @@ const itRunsProxyRoundCorrectly = async addresses => {
         proxy: networkProxy,
         commitments,
         nodes,
-        proofIndexes: new Array(nodes.length).fill(proofIndexes),
+        proofIndexes,
         randomNonces,
         users,
         wasCompliantData,
@@ -658,12 +681,6 @@ const itRunsProxyRoundCorrectly = async addresses => {
         users: dissentUsers,
         wasCompliantData: dissentWasCompliantData,
       })
-
-      /* await printState({
-        proxy: networkProxy,
-        nodes,
-        users,
-      }) */
 
       const stakedBalanceToSlashBefore = await bonding.bondedStakes(juriNode6)
       const stakedBalanceSlasherBefore = await bonding.bondedStakes(nodes[1])
@@ -703,7 +720,12 @@ const itRunsProxyRoundCorrectly = async addresses => {
         '0x68656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
         '0x78656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
       ]
-      const proofIndexes = [10, 22, 32, 40]
+      const proofIndexes = [
+        [1, 2, 3, 4],
+        [1, 2, 3, 4],
+        [1, 2, 3, 4],
+        [14, 24, 32, 4],
+      ]
       const commitments = [
         Web3Utils.soliditySha3(wasCompliantData[0], randomNonces[0]),
         Web3Utils.soliditySha3(wasCompliantData[1], randomNonces[1]),
@@ -715,7 +737,7 @@ const itRunsProxyRoundCorrectly = async addresses => {
         proxy: networkProxy,
         commitments,
         nodes,
-        proofIndexes: new Array(nodes.length).fill(proofIndexes),
+        proofIndexes,
         randomNonces,
         users,
         wasCompliantData,
@@ -751,12 +773,6 @@ const itRunsProxyRoundCorrectly = async addresses => {
         )
       )
 
-      /* await printState({
-        proxy: networkProxy,
-        nodes,
-        users,
-      }) */
-
       await increase(duration.hours(1).add(duration.minutes(5)))
       await networkProxy.moveToNextRound()
     })
@@ -771,7 +787,12 @@ const itRunsProxyRoundCorrectly = async addresses => {
         '0x68656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
         '0x78656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
       ]
-      const proofIndexes = [10, 22, 32, 40]
+      const proofIndexes = [
+        [1, 2, 3, 4],
+        [1, 2, 3, 4],
+        [1, 2, 3, 4],
+        [14, 24, 32, 4],
+      ]
       const commitments = [
         Web3Utils.soliditySha3(wasCompliantData[0], randomNonces[0]),
         Web3Utils.soliditySha3(wasCompliantData[1], randomNonces[1]),
@@ -783,7 +804,7 @@ const itRunsProxyRoundCorrectly = async addresses => {
         proxy: networkProxy,
         commitments,
         nodes,
-        proofIndexes: new Array(nodes.length).fill(proofIndexes),
+        proofIndexes,
         randomNonces,
         users,
         wasCompliantData,
@@ -811,12 +832,6 @@ const itRunsProxyRoundCorrectly = async addresses => {
         users: dissentUsers,
         wasCompliantData: dissentWasCompliantData,
       })
-
-      /* await printState({
-        proxy: networkProxy,
-        nodes,
-        users,
-      }) */
 
       const stakedBalanceToSlashBefore = await bonding.bondedStakes(nodes[0])
       const stakedBalanceSlasherBefore = await bonding.bondedStakes(nodes[1])
@@ -846,7 +861,7 @@ const itRunsProxyRoundCorrectly = async addresses => {
       await networkProxy.moveToNextRound()
     })
 
-    it('runs the round correctly with incorrect result slashing', async () => {
+    it.only('runs the round correctly with incorrect result slashing', async () => {
       // FIRST ROUND DATA
       const nodes = [juriNode1, juriNode2]
       const users = [poolUser1, poolUser2]
@@ -855,7 +870,7 @@ const itRunsProxyRoundCorrectly = async addresses => {
         '0x48656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
         '0x58656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
       ]
-      const proofIndexes = [100, 200]
+      const proofIndexes = [[100, 200], [100, 200]]
       const commitments = [
         Web3Utils.soliditySha3(wasCompliantData[0], randomNonces[0]),
         Web3Utils.soliditySha3(wasCompliantData[1], randomNonces[1]),
@@ -879,7 +894,7 @@ const itRunsProxyRoundCorrectly = async addresses => {
         proxy: networkProxy,
         commitments,
         nodes,
-        proofIndexes: new Array(nodes.length).fill(proofIndexes),
+        proofIndexes,
         randomNonces,
         users,
         wasCompliantData,

@@ -38,6 +38,7 @@ contract JuriNetworkProxy is Ownable {
     }
 
     struct NodeForUserState {
+        bool hasRevealed;
         bytes32 complianceDataCommitment;
         bool givenNodeResult;
         bool hasDissented;
@@ -46,8 +47,6 @@ contract JuriNetworkProxy is Ownable {
 
     struct NodeState {
         mapping (address => NodeForUserState) nodeForUserStates;
-        bool hasRevealed;
-        bool dissentHasRevealed;
         bool hasRetrievedRewards;
         uint256 activityCount;
     }
@@ -255,12 +254,6 @@ contract JuriNetworkProxy is Ownable {
         bool[] memory _wasCompliantData,
         bytes32[] memory _randomNonces
     ) public checkIfNextStage atStage(Stages.NODES_ADDING_RESULT_REVEALS) {
-        require(
-            !_getCurrentStateForNode(msg.sender).hasRevealed,
-            "You already added the complianceData!"
-        );
-        stateForRound[roundIndex].nodeStates[msg.sender].hasRevealed = true;
-
         _addWasCompliantDataForUsers(
             _users,
             _wasCompliantData,
@@ -275,12 +268,6 @@ contract JuriNetworkProxy is Ownable {
     ) public
         checkIfNextStage
         atStage(Stages.DISSENTS_NODES_ADDING_RESULT_REVEALS) {
-        require(
-            !_getCurrentStateForNode(msg.sender).dissentHasRevealed,
-            "You already added the complianceData!"
-        );
-        stateForRound[roundIndex].nodeStates[msg.sender].dissentHasRevealed = true;
-
         _addWasCompliantDataForUsers(
             _users,
             _wasCompliantData,
@@ -307,8 +294,6 @@ contract JuriNetworkProxy is Ownable {
 
         stateForRound[roundIndex].userStates[_user].complianceDataBeforeDissent
             = _getCurrentStateForUser(_user).userComplianceData;
-        // stateForRound[roundIndex].userStates[_user].userComplianceData = 0;
-        // (commented out to keep old results)
         stateForRound[roundIndex]
             .userStates[_user]
             .dissented = true;
@@ -365,11 +350,11 @@ contract JuriNetworkProxy is Ownable {
         return stateForRound[_roundIndex].userStates[_user].complianceDataBeforeDissent;
     }
 
-    function getHasRevealed(uint256 _roundIndex, address _node)
+    function getHasRevealed(uint256 _roundIndex, address _node, address _user)
         public
         view
         returns (bool) {
-        return stateForRound[_roundIndex].nodeStates[_node].hasRevealed;
+        return stateForRound[_roundIndex].nodeStates[_node].nodeForUserStates[_user].hasRevealed;
     }
 
     function getNodeActivityCount(uint256 _roundIndex, address _node)
@@ -488,7 +473,8 @@ contract JuriNetworkProxy is Ownable {
         );
 
         require(
-            _users.length == _proofIndices.length,
+            _users.length == _proofIndices.length
+            || currentStage == Stages.DISSENTS_NODES_ADDING_RESULT_COMMITMENTS,
             'Users length should match proofIndices!'
         );
 
@@ -533,13 +519,20 @@ contract JuriNetworkProxy is Ownable {
 
         for (uint256 i = 0; i < _users.length; i++) {
             address user = _users[i];
+            NodeForUserState memory nodeForUserState
+                = _getCurrentStateForNodeForUser(node, user);
             bool wasCompliant = _wasCompliantData[i];
-            bytes32 commitment = _getCurrentStateForNodeForUser(node, user)
-                .complianceDataCommitment;
+            bytes32 commitment = nodeForUserState.complianceDataCommitment;
             bytes32 randomNonce = _randomNonces[i];
             bytes32 verifierNonceHash = keccak256(
                 abi.encodePacked(wasCompliant, randomNonce)
             );
+
+            require(
+                !nodeForUserState.hasRevealed,
+                "You already added the complianceData!"
+            );
+            stateForRound[roundIndex].nodeStates[msg.sender].nodeForUserStates[user].hasRevealed = true;
     
             require(
                 verifierNonceHash == commitment,

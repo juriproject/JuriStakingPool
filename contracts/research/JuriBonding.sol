@@ -116,14 +116,14 @@ contract JuriBonding is Ownable {
             _toSlashNode,
             _notRevealedUser
         );
-
-        require(
-            !proxy.getHasRevealed(roundIndex, _toSlashNode), // TODO dissentHasRevealed
-            "The passed node has revealed his commitment!"
-        );
+        
         require(
             wasAssignedToUser,
             "The passed node was not assigned to passed user!"
+        );
+        require(
+            !proxy.getHasRevealed(roundIndex, _toSlashNode, _notRevealedUser),
+            "The passed node has revealed his commitment!"
         );
         
         _slashStake(roundIndex, _toSlashNode, msg.sender, notRevealPenalty);
