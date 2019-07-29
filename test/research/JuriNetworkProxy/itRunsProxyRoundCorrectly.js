@@ -1,4 +1,5 @@
 const { expect } = require('chai')
+const Heap = require('heap')
 const { BN, ether, time } = require('openzeppelin-test-helpers')
 const Web3Utils = require('web3-utils')
 
@@ -17,6 +18,36 @@ const StageMapping = {
   '4': 'DISSENTS_NODES_ADDING_RESULT_COMMITMENTS',
   '5': 'DISSENTS_NODES_ADDING_RESULT_REVEALS',
   '6': 'SLASHING_PERIOD',
+}
+
+const findLowestHashProofIndexes = ({ bondedStake, node }) => {
+  const heap = new Heap((a, b) => (a.gt(b) ? -1 : 1))
+  const hashesToProofIndex = {}
+
+  for (let proofIndex = 0; proofIndex < bondedStake; proofIndex++) {
+    const currentSmallest = heap.peek()
+    const hash = new BN(
+      Web3Utils.soliditySha3(
+        '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+        node,
+        proofIndex
+      ).slice(2),
+      16
+    )
+
+    if (proofIndex <= 3) {
+      heap.push(hash)
+      hashesToProofIndex[hash] = proofIndex
+    } else if (currentSmallest.gt(hash)) {
+      heap.pushpop(hash)
+      hashesToProofIndex[hash] = proofIndex
+    }
+  }
+
+  const lowestHashes = heap.toArray()
+  const proofIndexes = lowestHashes.map(hash => hashesToProofIndex[hash])
+
+  return { lowestHashes, proofIndexes }
 }
 
 const removeEmptyKeys = obj => {
@@ -175,8 +206,88 @@ const runSetupRound = async ({ node, proxy, user }) => {
   await proxy.moveToNextRound()
 }
 
+const hasNewHashesToAdd = ({
+  currentLowestHashesForUser,
+  lowestHashFromNodeForUser,
+}) => {
+  const currentLowestHashesForUserBN = currentLowestHashesForUser
+    .map(hash => new BN(hash.slice(2), 16))
+    .sort((a, b) => (a.gt(b) ? 1 : -1))
+  const currentMaxHashForUser = currentLowestHashesForUserBN[1]
+  const lowestHashFromNodeForUserBN = new BN(
+    lowestHashFromNodeForUser.slice(2),
+    16
+  )
+
+  return currentMaxHashForUser.gt(lowestHashFromNodeForUserBN)
+}
+
+const addLowestHashes = async ({
+  commitments,
+  lowestHashesForNode,
+  node,
+  proofIndexesForNode,
+  proxy,
+  users,
+}) => {
+  const hashesToAddIndexes = []
+
+  const currentLowestHashes = [
+    await proxy.getUserWorkAssignmentHashes(2, users[0]),
+    await proxy.getUserWorkAssignmentHashes(2, users[1]),
+    await proxy.getUserWorkAssignmentHashes(2, users[2]),
+    await proxy.getUserWorkAssignmentHashes(2, users[3]),
+  ].map(hashList =>
+    hashList.map(hashBN => '0x' + hashBN.toString(16).padStart(64, '0'))
+  )
+
+  for (let j = 0; j < users.length; j++) {
+    if (
+      hasNewHashesToAdd({
+        currentLowestHashesForUser: currentLowestHashes[j],
+        lowestHashFromNodeForUser: lowestHashesForNode[j],
+      })
+    )
+      hashesToAddIndexes.push(j)
+  }
+
+  if (hashesToAddIndexes.length > 0) {
+    const mappedUsers = hashesToAddIndexes.map(index => users[index])
+    const mappedCommitments = hashesToAddIndexes.map(
+      index => commitments[index]
+    )
+    const mappedProofIndexes = hashesToAddIndexes.map(
+      index => proofIndexesForNode[index]
+    )
+
+    await proxy.addWasCompliantDataCommitmentsForUsers(
+      mappedUsers,
+      mappedCommitments,
+      mappedProofIndexes,
+      { from: node }
+    )
+  }
+}
+
+const getAssignedUsersIndexes = async ({ node, proxy, users }) => {
+  const assignedUsersIndexes = []
+
+  for (let i = 0; i < users.length; i++) {
+    const wasAssignedToUser = await proxy.getWasAssignedToUser(
+      2,
+      node,
+      users[i]
+    )
+
+    if (wasAssignedToUser) assignedUsersIndexes.push(i)
+  }
+
+  return assignedUsersIndexes
+}
+
 const runFirstHalfOfRound = async ({
   commitments,
+  lowestHashes,
   nodes,
   proofIndexes,
   proxy,
@@ -196,23 +307,52 @@ const runFirstHalfOfRound = async ({
   await increase(duration.days(7).add(duration.minutes(5)))
 
   for (let i = 0; i < nodes.length; i++) {
-    await proxy.addWasCompliantDataCommitmentsForUsers(
-      users,
-      commitments,
-      proofIndexes,
-      { from: nodes[i] }
-    )
+    if (i > 1 && lowestHashes) {
+      await addLowestHashes({
+        lowestHashesForNode: lowestHashes[i],
+        node: nodes[i],
+        proofIndexesForNode: proofIndexes[i],
+        commitments,
+        proxy,
+        users,
+      })
+    } else {
+      await proxy.addWasCompliantDataCommitmentsForUsers(
+        users,
+        commitments,
+        proofIndexes[i],
+        { from: nodes[i] }
+      )
+    }
   }
 
   await increase(duration.hours(1).add(duration.minutes(5)))
   for (let i = 0; i < nodes.length; i++) {
-    if (!notRevealNodes.includes(nodes[i]))
-      await proxy.addWasCompliantDataForUsers(
+    const node = nodes[i]
+
+    if (!notRevealNodes.includes(node)) {
+      const assignedUsersIndexes = await getAssignedUsersIndexes({
+        node,
+        proxy,
         users,
-        wasCompliantData,
-        randomNonces,
-        { from: nodes[i] }
-      )
+      })
+
+      if (assignedUsersIndexes.length > 0) {
+        const mappedUsers = assignedUsersIndexes.map(index => users[index])
+        const mappedWasCompliantData = assignedUsersIndexes.map(
+          index => wasCompliantData[index]
+        )
+        const mappedRandomNonces = assignedUsersIndexes.map(
+          index => randomNonces[index]
+        )
+        await proxy.addWasCompliantDataForUsers(
+          mappedUsers,
+          mappedWasCompliantData,
+          mappedRandomNonces,
+          { from: node }
+        )
+      }
+    }
   }
 }
 
@@ -352,7 +492,6 @@ const itRunsProxyRoundCorrectly = async addresses => {
         '0x68656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
         '0x78656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
       ]
-      const proofIndexes = [10, 22, 32, 40]
       const commitments = [
         Web3Utils.soliditySha3(wasCompliantData[0], randomNonces[0]),
         Web3Utils.soliditySha3(wasCompliantData[1], randomNonces[1]),
@@ -360,9 +499,27 @@ const itRunsProxyRoundCorrectly = async addresses => {
         Web3Utils.soliditySha3(wasCompliantData[3], randomNonces[3]),
       ]
 
+      const lowestProofIndexesWithHashes = [...Array(4).keys()].map(i => {
+        const { lowestHashes, proofIndexes } = findLowestHashProofIndexes({
+          bondedStake: 100,
+          node: nodes[i],
+        })
+
+        return {
+          lowestHashes: lowestHashes.map(
+            index => '0x' + index.toString(16).padStart(64, '0')
+          ),
+          proofIndexes,
+        }
+      })
+
+      const lowestHashes = lowestProofIndexesWithHashes.map(a => a.lowestHashes)
+      const proofIndexes = lowestProofIndexesWithHashes.map(a => a.proofIndexes)
+
       await runFirstHalfOfRound({
         proxy: networkProxy,
         commitments,
+        lowestHashes,
         nodes,
         proofIndexes,
         randomNonces,
@@ -387,6 +544,70 @@ const itRunsProxyRoundCorrectly = async addresses => {
       }
     })
 
+    it.only('runs the round correctly with multiple proof indexes per node', async () => {
+      const users = [poolUser1, poolUser1, poolUser2]
+
+      for (let i = 1; i < users.length; i++) {
+        await networkProxy.addHeartRateDateForPoolUser(
+          users[i],
+          `0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100`,
+          `0x01/123-heartRateData.xml`
+        )
+      }
+
+      await increase(duration.days(7).add(duration.minutes(5)))
+
+      const proofIndexes = [10, 22, 32]
+      const wasCompliantData = [true, true, false]
+      const randomNonces = [
+        '0x48656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+        '0x48656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+        '0x58656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+      ]
+      const commitments = [
+        Web3Utils.soliditySha3(wasCompliantData[0], randomNonces[0]),
+        Web3Utils.soliditySha3(wasCompliantData[1], randomNonces[1]),
+        Web3Utils.soliditySha3(wasCompliantData[2], randomNonces[2]),
+      ]
+
+      await networkProxy.addWasCompliantDataCommitmentsForUsers(
+        users,
+        commitments,
+        proofIndexes,
+        { from: juriNode1 }
+      )
+
+      await increase(duration.hours(1).add(duration.minutes(5)))
+      await networkProxy.addWasCompliantDataForUsers(
+        users,
+        wasCompliantData,
+        randomNonces,
+        { from: juriNode1 }
+      )
+
+      await increase(duration.hours(1).add(duration.minutes(5)))
+      await networkProxy.moveToDissentPeriod()
+      await increase(duration.hours(1).add(duration.minutes(5)))
+      await networkProxy.moveFromDissentToNextPeriod()
+      await increase(duration.hours(1).add(duration.minutes(5)))
+      await networkProxy.moveToNextRound()
+
+      for (let i = 0; i < users.length; i++) {
+        const wasCompliant = (await networkProxy.getUserComplianceData(
+          2,
+          users[i]
+        )).gt(new BN(0))
+
+        expect(wasCompliant).to.be.equal(wasCompliantData[i])
+      }
+
+      const getNodeActivityCount = await networkProxy.getNodeActivityCount(
+        2,
+        juriNode1
+      )
+      expect(getNodeActivityCount).to.be.bignumber.equal(new BN(users.length))
+    })
+
     it('runs the round correctly with offline slashing', async () => {
       const nodes = [juriNode1, juriNode2, juriNode3, juriNode4]
       const users = [poolUser1, poolUser2, poolUser3, poolUser4]
@@ -409,7 +630,7 @@ const itRunsProxyRoundCorrectly = async addresses => {
         proxy: networkProxy,
         commitments,
         nodes,
-        proofIndexes,
+        proofIndexes: new Array(nodes.length).fill(proofIndexes),
         randomNonces,
         users,
         wasCompliantData,
@@ -494,7 +715,7 @@ const itRunsProxyRoundCorrectly = async addresses => {
         proxy: networkProxy,
         commitments,
         nodes,
-        proofIndexes,
+        proofIndexes: new Array(nodes.length).fill(proofIndexes),
         randomNonces,
         users,
         wasCompliantData,
@@ -562,7 +783,7 @@ const itRunsProxyRoundCorrectly = async addresses => {
         proxy: networkProxy,
         commitments,
         nodes,
-        proofIndexes,
+        proofIndexes: new Array(nodes.length).fill(proofIndexes),
         randomNonces,
         users,
         wasCompliantData,
@@ -658,7 +879,7 @@ const itRunsProxyRoundCorrectly = async addresses => {
         proxy: networkProxy,
         commitments,
         nodes,
-        proofIndexes,
+        proofIndexes: new Array(nodes.length).fill(proofIndexes),
         randomNonces,
         users,
         wasCompliantData,

@@ -344,6 +344,13 @@ contract JuriNetworkProxy is Ownable {
 
     /// INTERFACE METHODS
 
+    function getUserWorkAssignmentHashes(uint256 _roundIndex, address _user)
+        public
+        view
+        returns (uint256[] memory) {
+        return stateForRound[_roundIndex].userStates[_user].verifierHashesMaxHeap.getLowestHashes();
+    }
+
     function getDissented(uint256 _roundIndex, address _user)
         public
         view
@@ -475,14 +482,19 @@ contract JuriNetworkProxy is Ownable {
     ) private {
         address node = msg.sender;
 
+        require(
+            _users.length == _wasCompliantDataCommitments.length,
+            'Users length should match wasCompliantDataCommitments!'
+        );
+
+        require(
+            _users.length == _proofIndices.length,
+            'Users length should match proofIndices!'
+        );
+
         for (uint256 i = 0; i < _users.length; i++) {
             address user = _users[i];
             bytes32 wasCompliantCommitment = _wasCompliantDataCommitments[i];
-
-            require(
-                _getCurrentStateForNodeForUser(node, user).complianceDataCommitment == 0x0,
-                'Node already added the compliance data for the given user!'
-            );
 
             if (!_getCurrentStateForUser(user).dissented) {
                 require(
@@ -491,11 +503,13 @@ contract JuriNetworkProxy is Ownable {
                 );
             }
 
-            stateForRound[roundIndex]
-                .nodeStates[node]
-                .nodeForUserStates[user]
-                .complianceDataCommitment
-                    = wasCompliantCommitment;
+            if (_getCurrentStateForNodeForUser(node, user).complianceDataCommitment == 0x0) {
+                stateForRound[roundIndex]
+                    .nodeStates[node]
+                    .nodeForUserStates[user]
+                    .complianceDataCommitment
+                        = wasCompliantCommitment;
+            }
         }
 
         _increaseActivityCountForNode(node, _users.length);
@@ -654,6 +668,10 @@ contract JuriNetworkProxy is Ownable {
             .nodeStates[removedNode]
             .nodeForUserStates[_user]
             .wasAssignedToUser = false;
+        stateForRound[roundIndex]
+            .nodeStates[removedNode]
+            .nodeForUserStates[_user]
+            .complianceDataCommitment = 0x0;
 
         _decrementActivityCountForNode(removedNode);
     }

@@ -74,7 +74,10 @@ contract JuriBonding is Ownable {
     }
 
     function slashStakeForBeingOffline(address _toSlashNode, address _dissentedUser) public {
-        require(proxy.currentStage() == JuriNetworkProxy.Stages.SLASHING_PERIOD, 'Proxy must be in slashing stage!');
+        require(
+            proxy.currentStage() == JuriNetworkProxy.Stages.SLASHING_PERIOD,
+            'Proxy must be in slashing stage!'
+        );
         uint256 roundIndex = proxy.roundIndex();
 
         require(
@@ -89,14 +92,17 @@ contract JuriBonding is Ownable {
         require(userWasDissented, "The passed user was not dissented!");
         require(
             commitment == 0x0,
-            "The passed node was not assigned to passed user!"
+            "The passed node was not offline!"
         );
 
         _slashStake(roundIndex, _toSlashNode, msg.sender, offlinePenalty);
     }
 
     function slashStakeForNotRevealing(address _toSlashNode, address _notRevealedUser) public {
-        require(proxy.currentStage() == JuriNetworkProxy.Stages.SLASHING_PERIOD, 'Proxy must be in slashing stage!');
+        require(
+            proxy.currentStage() == JuriNetworkProxy.Stages.SLASHING_PERIOD,
+            'Proxy must be in slashing stage!'
+        );
         uint256 roundIndex = proxy.roundIndex();
 
         require(
@@ -105,14 +111,18 @@ contract JuriBonding is Ownable {
         );
         hasBeenSlashed[roundIndex][_notRevealedUser][NOT_REVEAL_SLASH] = true;
 
-        bytes32 commitment = proxy.getUserComplianceDataCommitment(roundIndex, _toSlashNode, _notRevealedUser);
+        bool wasAssignedToUser = proxy.getWasAssignedToUser(
+            roundIndex,
+            _toSlashNode,
+            _notRevealedUser
+        );
 
         require(
             !proxy.getHasRevealed(roundIndex, _toSlashNode), // TODO dissentHasRevealed
             "The passed node has revealed his commitment!"
         );
         require(
-            commitment != 0x0,
+            wasAssignedToUser,
             "The passed node was not assigned to passed user!"
         );
         
@@ -120,7 +130,10 @@ contract JuriBonding is Ownable {
     }
 
     function slashStakeForIncorrectResult(address _toSlashNode, address _incorrectResultUser) public {
-        require(proxy.currentStage() == JuriNetworkProxy.Stages.SLASHING_PERIOD, 'Proxy must be in slashing stage!');
+        require(
+            proxy.currentStage() == JuriNetworkProxy.Stages.SLASHING_PERIOD,
+            'Proxy must be in slashing stage!'
+        );
         uint256 roundIndex = proxy.roundIndex();
 
         require(
@@ -141,7 +154,10 @@ contract JuriBonding is Ownable {
     }
 
     function slashStakeForIncorrectDissenting(address _toSlashNode, address _incorrectDissentUser) public {
-        require(proxy.currentStage() == JuriNetworkProxy.Stages.SLASHING_PERIOD, 'Proxy must be in slashing stage!');
+        require(
+            proxy.currentStage() == JuriNetworkProxy.Stages.SLASHING_PERIOD,
+            'Proxy must be in slashing stage!'
+        );
         uint256 roundIndex = proxy.roundIndex();
 
         require(

@@ -120,11 +120,23 @@ library MaxHeapLibrary {
     }
 
 
-    function getHeap(heapStruct storage heap) public view returns(MaxHeapEntry[] storage) {
+    function getHeap(heapStruct storage heap) public view returns (MaxHeapEntry[] storage) {
         return heap.elements;
     }
 
-    function getMax(heapStruct storage heap) public view returns(MaxHeapEntry storage) {
+    function getLowestHashes(heapStruct storage heap) public view returns (uint256[] memory) {
+        if (heap.elements.length == 0) return new uint256[](0);
+
+        uint256[] memory lowestHashes = new uint256[](heap.elements.length - 1);
+
+        for (uint256 i = 0; i < heap.elements.length - 1; i++) {
+            lowestHashes[i] = heap.elements[i + 1].value;
+        }
+
+        return lowestHashes;
+    }
+
+    function getMax(heapStruct storage heap) public view returns (MaxHeapEntry storage) {
         if (heap.elements.length == 1) {
             return heap.elements[0];
         }
@@ -132,7 +144,7 @@ library MaxHeapLibrary {
         return heap.elements[1];
     }
 
-    function getLength(heapStruct storage heap) public view returns(uint256) {
+    function getLength(heapStruct storage heap) public view returns (uint256) {
         if (heap.elements.length == 0) {
             return 0;
         }
