@@ -88,7 +88,7 @@ contract JuriNetworkProxy is Ownable {
     }
 
     JuriBonding public bonding;
-    IERC20 public token;
+    IERC20 public juriFeesToken;
     SkaleFileStorageInterface public skaleFileStorage;
 
     Stages public currentStage;
@@ -104,7 +104,8 @@ contract JuriNetworkProxy is Ownable {
     mapping (uint256 => JuriRound) private stateForRound;
 
     constructor(
-        IERC20 _token,
+        IERC20 _juriFeesToken,
+        IERC20 _juriToken,
         SkaleFileStorageInterface _skaleFileStorage,
         uint256 _timeForAddingHeartRateData,
         uint256 _timeForCommitmentStage,
@@ -129,7 +130,7 @@ contract JuriNetworkProxy is Ownable {
 
         bonding = new JuriBonding(
             this,
-            _token,
+            _juriToken,
             _minStakePerNode,
             _offlinePenalty,
             _notRevealPenalty,
@@ -139,7 +140,7 @@ contract JuriNetworkProxy is Ownable {
         registerJuriStakingPool(address(bonding));
 
         skaleFileStorage = _skaleFileStorage;
-        token = _token;
+        juriFeesToken = _juriFeesToken;
         currentStage = Stages.USER_ADDING_HEART_RATE_DATA;
         roundIndex = 0;
         startTime = now;
@@ -174,7 +175,7 @@ contract JuriNetworkProxy is Ownable {
         dissentedUsers = new address[](0);
         // nodeVerifierCount = bonding.totalNodesCount(roundIndex).div(3);
         nodeVerifierCount = bonding.stakingNodesAddressCount(roundIndex).div(3);
-        totalJuriFees = token.balanceOf(address(this));
+        totalJuriFees = juriFeesToken.balanceOf(address(this));
     }
 
     function moveToDissentPeriod()
@@ -304,26 +305,26 @@ contract JuriNetworkProxy is Ownable {
         dissentedUsers.push(_user);
     }
 
-    function retrieveRoundJuriFees()
-        public
-        checkIfNextStage
-        atStage(Stages.USER_ADDING_HEART_RATE_DATA) {
+    function retrieveRoundJuriFees(uint256 _roundIndex) public {
         address node = msg.sender;
-        NodeState memory nodeState = _getCurrentStateForNode(node);
+        NodeState memory nodeState = stateForRound[_roundIndex].nodeStates[node];
+        uint256 activityCount = nodeState.activityCount;
 
+        require(_roundIndex < roundIndex, "Round not yet finished!");
         require(
             !nodeState.hasRetrievedRewards,
             "You already retrieved your rewards this round!"
         );
+        require(activityCount > 0, "Node did not participate this round!");
 
-        uint256 activityCount = nodeState.activityCount;
+        uint256 multiplier = 1000000;
         uint256 totalNodeActivityCount
-            = stateForRound[roundIndex].totalActivityCount;
-        uint256 activityShare = activityCount.div(totalNodeActivityCount);
-        uint256 tokenAmount = totalJuriFees.mul(activityShare);
+            = stateForRound[_roundIndex].totalActivityCount;
+        uint256 activityShare = activityCount.mul(multiplier).div(totalNodeActivityCount);
+        uint256 juriFeesTokenAmount = totalJuriFees.mul(activityShare).div(multiplier);
 
-        stateForRound[roundIndex].nodeStates[node].hasRetrievedRewards = true;
-        token.transfer(node, tokenAmount);
+        stateForRound[_roundIndex].nodeStates[node].hasRetrievedRewards = true;
+        juriFeesToken.transfer(node, juriFeesTokenAmount);
     }
 
     /// INTERFACE METHODS
@@ -497,7 +498,12 @@ contract JuriNetworkProxy is Ownable {
             }
         }
 
-        _increaseActivityCountForNode(node, _users.length);
+        if (currentStage == Stages.NODES_ADDING_RESULT_COMMITMENTS) {
+            // dont count dissent rounds as activity
+            // nodes have an incentive to participate
+            // by not getting offline slashed
+            _increaseActivityCountForNode(node, _users.length);
+        }
     }
 
     function _addWasCompliantDataForUsers(
@@ -690,7 +696,7 @@ contract JuriNetworkProxy is Ownable {
 
 // two ideas for work allocation
 
-// 1) Have a mapping for each weiToken to address, kind of like ERC-721.
+// 1) Have a mapping for each weijuriFeesToken to address, kind of like ERC-721.
 // See below for how the implementaton here would look like.
 //
 // Issue: How to get that mapping? Might be not so straight-forward.
@@ -702,9 +708,9 @@ bytes32 hashedSignature = userWorkoutSignature;
 for (uint256 i = 0; i < nodeVerifierCount; i++) {
     hashedSignature = keccak256(hashedSignature);
 
-    uint256 verifiedWeiToken = hashedSignature % totalStaked;
+    uint256 verifiedWeijuriFeesToken = hashedSignature % totalStaked;
     address allowedVerifier
-        = bonding.getOwnerOfStakedToken(verifiedWeiToken);
+        = bonding.getOwnerOfStakedjuriFeesToken(verifiedWeijuriFeesToken);
 
     if (allowedVerifier == _node) {
         return true;

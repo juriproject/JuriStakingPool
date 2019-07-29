@@ -1,6 +1,6 @@
 const { expect } = require('chai')
 const Heap = require('heap')
-const { BN, ether, time } = require('openzeppelin-test-helpers')
+const { BN, ether, shouldFail, time } = require('openzeppelin-test-helpers')
 const Web3Utils = require('web3-utils')
 
 const ERC20Mintable = artifacts.require('./lib/ERC20Mintable.sol')
@@ -298,9 +298,9 @@ const runFirstHalfOfRound = async ({
 }) => {
   for (let i = 0; i < users.length; i++) {
     await proxy.addHeartRateDateForPoolUser(
-      users[i],
       `0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100`,
-      `0x01/123-heartRateData.xml`
+      `0x01/123-heartRateData.xml`,
+      { from: users[i] }
     )
   }
 
@@ -438,7 +438,7 @@ const itRunsProxyRoundCorrectly = async addresses => {
       poolUser4,
       skaleFileStorage,
       offlinePenalty,
-      token
+      juriToken
 
     beforeEach(async () => {
       offlinePenalty = new BN(10)
@@ -446,9 +446,11 @@ const itRunsProxyRoundCorrectly = async addresses => {
       incorrectResultPenalty = new BN(35)
       incorrectDissentPenalty = new BN(40)
       skaleFileStorage = await SkaleFileStorageMock.new()
-      token = await ERC20Mintable.new()
+      juriFeesToken = await ERC20Mintable.new()
+      juriToken = await ERC20Mintable.new()
       networkProxy = await JuriNetworkProxy.new(
-        token.address,
+        juriFeesToken.address,
+        juriToken.address,
         skaleFileStorage.address,
         duration.days(7),
         duration.hours(1),
@@ -478,13 +480,13 @@ const itRunsProxyRoundCorrectly = async addresses => {
       await Promise.all(
         addresses
           .slice(0, 10)
-          .map(address => token.mint(address, ether('1000000')))
+          .map(address => juriToken.mint(address, ether('1000000')))
       )
       await Promise.all(
         addresses
           .slice(4, 10)
           .map(node =>
-            token
+            juriToken
               .approve(bonding.address, ether('10000'), { from: node })
               .then(() => bonding.bondStake(ether('10000'), { from: node }))
           )
@@ -567,9 +569,9 @@ const itRunsProxyRoundCorrectly = async addresses => {
 
       for (let i = 1; i < users.length; i++) {
         await networkProxy.addHeartRateDateForPoolUser(
-          users[i],
           `0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100`,
-          `0x01/123-heartRateData.xml`
+          `0x01/123-heartRateData.xml`,
+          { from: users[i] }
         )
       }
 
@@ -861,7 +863,7 @@ const itRunsProxyRoundCorrectly = async addresses => {
       await networkProxy.moveToNextRound()
     })
 
-    it.only('runs the round correctly with incorrect result slashing', async () => {
+    it('runs the round correctly with incorrect result slashing', async () => {
       // FIRST ROUND DATA
       const nodes = [juriNode1, juriNode2]
       const users = [poolUser1, poolUser2]
@@ -939,6 +941,55 @@ const itRunsProxyRoundCorrectly = async addresses => {
 
       await increase(duration.hours(1).add(duration.minutes(5)))
       await networkProxy.moveToNextRound()
+    })
+
+    it('allows retrieving juri fees as round reward for participating nodes', async () => {
+      const nodes = [juriNode1, juriNode2]
+      const users = [poolUser1, poolUser2]
+      const wasCompliantData = [true, true]
+      const randomNonces = [
+        '0x48656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+        '0x58656c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+      ]
+      const proofIndexes = [[100, 200], [100, 200]]
+      const commitments = [
+        Web3Utils.soliditySha3(wasCompliantData[0], randomNonces[0]),
+        Web3Utils.soliditySha3(wasCompliantData[1], randomNonces[1]),
+      ]
+
+      await runFirstHalfOfRound({
+        proxy: networkProxy,
+        commitments,
+        nodes,
+        proofIndexes,
+        randomNonces,
+        users,
+        wasCompliantData,
+      })
+
+      await increase(duration.hours(1).add(duration.minutes(5)))
+      await networkProxy.moveToDissentPeriod()
+      await increase(duration.hours(1).add(duration.minutes(5)))
+      await networkProxy.moveFromDissentToNextPeriod()
+      await juriFeesToken.mint(networkProxy.address, ether('100'))
+      await increase(duration.hours(1).add(duration.minutes(5)))
+      await networkProxy.moveToNextRound()
+
+      await networkProxy.retrieveRoundJuriFees(2, { from: juriNode1 })
+      await networkProxy.retrieveRoundJuriFees(2, { from: juriNode2 })
+
+      await shouldFail.reverting.withMessage(
+        networkProxy.retrieveRoundJuriFees(2, { from: juriNode3 }),
+        'Node did not participate this round!'
+      )
+
+      const balanceJuriNode1After = await juriFeesToken.balanceOf(juriNode1)
+      const balanceJuriNode2After = await juriFeesToken.balanceOf(juriNode2)
+      const balanceJuriNode3After = await juriFeesToken.balanceOf(juriNode3)
+
+      expect(balanceJuriNode1After).to.be.bignumber.equal(ether('50'))
+      expect(balanceJuriNode2After).to.be.bignumber.equal(ether('50'))
+      expect(balanceJuriNode3After).to.be.bignumber.equal(ether('0'))
     })
   })
 }

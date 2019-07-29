@@ -11,12 +11,14 @@ module.exports = deployer => {
     await deployer.deploy(MaxHeapLibrary)
     await deployer.link(MaxHeapLibrary, [JuriNetworkProxy])
 
-    const skaleFileStorage = await deployer.deploy(ERC20Mintable)
-    const token = await deployer.deploy(SkaleFileStorageMock)
+    const skaleFileStorage = await deployer.deploy(SkaleFileStorageMock)
+    const juriToken = await deployer.deploy(ERC20Mintable)
+    const juriFeesToken = await deployer.deploy(ERC20Mintable)
 
     await deployer.deploy(
       JuriNetworkProxy,
-      token.address,
+      juriFeesToken.address,
+      juriToken.address,
       skaleFileStorage.address,
       ONE_WEEK,
       ONE_HOUR,
