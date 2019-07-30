@@ -188,13 +188,13 @@ contract JuriBonding is Ownable {
         AllowedWithdrawalAfter memory allowed = allowedWithdrawalAmounts[msg.sender];
 
         require(
-            allowed.minRoundIndex >= roundIndex,
+            roundIndex >= allowed.minRoundIndex,
             "Not yet allowed to withdraw!"
         );
 
         allowedWithdrawalAmounts[msg.sender] = AllowedWithdrawalAfter(0, 0);
         require(
-            token.transferFrom(address(this), msg.sender, allowed.amount),
+            token.transfer(msg.sender, allowed.amount),
             "Not enough tokens in bonding contract for withdrawal!"
         );
     }
@@ -271,9 +271,6 @@ contract JuriBonding is Ownable {
             oldNodeStake = currentStakeAfter.oldStake;
         }
 
-        uint256 newNodeStake = oldNodeStake.sub(_amount);
-        uint256 oldNodeQualityCount = oldNodeStake.div(minStakePerNode);
-
         require(
             _amount > 0,
             "Please pass an amount above 0!"
@@ -282,6 +279,9 @@ contract JuriBonding is Ownable {
             oldNodeStake >= _amount,
             "You don't have enough stake to unbond!"
         );
+
+        uint256 newNodeStake = oldNodeStake.sub(_amount);
+        uint256 oldNodeQualityCount = oldNodeStake.div(minStakePerNode);
         require(
             newNodeStake >= minStakePerNode || newNodeStake == 0,
             "You may only unbond up to the minimum allowance or all stake!"
@@ -294,7 +294,7 @@ contract JuriBonding is Ownable {
         totalBonded = totalBonded.sub(_amount);
 
         uint256 newNodeQualityCount = newNodeStake.div(minStakePerNode);
-        uint256 removedNodeQuality = newNodeQualityCount.sub(oldNodeQualityCount);
+        uint256 removedNodeQuality = oldNodeQualityCount.sub(newNodeQualityCount);
 
         uint256 oldNextTotalNodesCount = totalNodesCount[nextRoundIndex] > 0
             ? totalNodesCount[nextRoundIndex]

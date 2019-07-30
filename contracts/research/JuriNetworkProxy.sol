@@ -439,22 +439,12 @@ contract JuriNetworkProxy is Ownable {
     }
 
     function _moveToNextStage() private {
-        if (currentStage == Stages.USER_ADDING_HEART_RATE_DATA) {
-            currentStage = Stages.NODES_ADDING_RESULT_COMMITMENTS;
-        } else if (currentStage == Stages.NODES_ADDING_RESULT_COMMITMENTS) {
-            currentStage = Stages.NODES_ADDING_RESULT_REVEALS;
-        } else if (currentStage == Stages.NODES_ADDING_RESULT_REVEALS) {
-            currentStage = Stages.DISSENTING_PERIOD;
-        } else if (currentStage == Stages.DISSENTING_PERIOD) {
+        if (currentStage == Stages.DISSENTING_PERIOD) {
             currentStage = dissentedUsers.length > 0
                 ? Stages.DISSENTS_NODES_ADDING_RESULT_COMMITMENTS
                 : Stages.SLASHING_PERIOD;
-        } else if (currentStage == Stages.DISSENTS_NODES_ADDING_RESULT_COMMITMENTS) {
-            currentStage = Stages.DISSENTS_NODES_ADDING_RESULT_REVEALS;
-        } else if (currentStage == Stages.DISSENTS_NODES_ADDING_RESULT_REVEALS) {
-            currentStage = Stages.SLASHING_PERIOD;
-        } else if (currentStage == Stages.SLASHING_PERIOD) {
-            currentStage = Stages.USER_ADDING_HEART_RATE_DATA;
+        } else {
+            currentStage = Stages((uint256(currentStage) + 1) % 7);
         }
 
         lastStageUpdate = now;
@@ -691,35 +681,3 @@ contract JuriNetworkProxy is Ownable {
             .wasAssignedToUser = true;
     }
 }
-
-
-
-// two ideas for work allocation
-
-// 1) Have a mapping for each weijuriFeesToken to address, kind of like ERC-721.
-// See below for how the implementaton here would look like.
-//
-// Issue: How to get that mapping? Might be not so straight-forward.
-
-/* uint256 totalStaked = bonding.getTotalBonded();
-bytes32 userWorkoutSignature = userWorkoutSignature[roundIndex][_user];
-bytes32 hashedSignature = userWorkoutSignature;
-
-for (uint256 i = 0; i < nodeVerifierCount; i++) {
-    hashedSignature = keccak256(hashedSignature);
-
-    uint256 verifiedWeijuriFeesToken = hashedSignature % totalStaked;
-    address allowedVerifier
-        = bonding.getOwnerOfStakedjuriFeesToken(verifiedWeijuriFeesToken);
-
-    if (allowedVerifier == _node) {
-        return true;
-    }
-}
-
-return false; */
-
-// 2) Compute keccak256(userWorkoutSignature, _node)
-// and allow the nodeVerifierCount greatest hashes to add the data.
-//
-// Issue: Front-running? Time-outs?
