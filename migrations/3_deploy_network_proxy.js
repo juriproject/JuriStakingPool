@@ -14,11 +14,13 @@ module.exports = deployer => {
     const skaleFileStorage = await deployer.deploy(SkaleFileStorageMock)
     const juriToken = await deployer.deploy(ERC20Mintable)
     const juriFeesToken = await deployer.deploy(ERC20Mintable)
+    const juriFoundation = '0x15ae150d7dc03d3b635ee90b85219dbfe071ed35'
 
     await deployer.deploy(
       JuriNetworkProxy,
       juriFeesToken.address,
       juriToken.address,
+      juriFoundation,
       skaleFileStorage.address,
       ONE_WEEK,
       ONE_HOUR,

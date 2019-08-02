@@ -38,6 +38,18 @@ const itRunsProxyRoundCorrectly = async addresses => {
       juriToken
 
     beforeEach(async () => {
+      poolUser1 = addresses[0]
+      poolUser2 = addresses[1]
+      poolUser3 = addresses[2]
+      poolUser4 = addresses[3]
+      juriNode1 = addresses[4]
+      juriNode2 = addresses[5]
+      juriNode3 = addresses[6]
+      juriNode4 = addresses[7]
+      juriNode5 = addresses[8]
+      juriNode6 = addresses[9]
+      juriFoundation = addresses[9]
+
       offlinePenalty = new BN(10)
       notRevealPenalty = new BN(20)
       incorrectResultPenalty = new BN(35)
@@ -49,6 +61,7 @@ const itRunsProxyRoundCorrectly = async addresses => {
         juriFeesToken.address,
         juriToken.address,
         skaleFileStorage.address,
+        juriFoundation,
         duration.days(7),
         duration.hours(1),
         duration.hours(1),
@@ -63,16 +76,6 @@ const itRunsProxyRoundCorrectly = async addresses => {
         incorrectDissentPenalty
       )
       bonding = await JuriBonding.at(await networkProxy.bonding())
-      poolUser1 = addresses[0]
-      poolUser2 = addresses[1]
-      poolUser3 = addresses[2]
-      poolUser4 = addresses[3]
-      juriNode1 = addresses[4]
-      juriNode2 = addresses[5]
-      juriNode3 = addresses[6]
-      juriNode4 = addresses[7]
-      juriNode5 = addresses[8]
-      juriNode6 = addresses[9]
 
       await Promise.all(
         addresses
@@ -302,6 +305,7 @@ const itRunsProxyRoundCorrectly = async addresses => {
           stakedBalanceToSlashBefore.newStake
             .mul(offlinePenalty)
             .div(new BN(100))
+            .div(new BN(2))
         )
       )
 
@@ -369,6 +373,7 @@ const itRunsProxyRoundCorrectly = async addresses => {
           stakedBalanceToSlashBefore.newStake
             .mul(notRevealPenalty)
             .div(new BN(100))
+            .div(new BN(2))
         )
       )
 
@@ -453,6 +458,7 @@ const itRunsProxyRoundCorrectly = async addresses => {
           stakedBalanceToSlashBefore.newStake
             .mul(incorrectDissentPenalty)
             .div(new BN(100))
+            .div(new BN(2))
         )
       )
 
@@ -533,6 +539,7 @@ const itRunsProxyRoundCorrectly = async addresses => {
           stakedBalanceToSlashBefore.newStake
             .mul(incorrectResultPenalty)
             .div(new BN(100))
+            .div(new BN(2))
         )
       )
 

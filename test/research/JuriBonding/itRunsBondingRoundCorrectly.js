@@ -6,7 +6,7 @@ const JuriBonding = artifacts.require('./JuriBonding.sol')
 const JuriNetworkProxyMock = artifacts.require('./JuriNetworkProxyMock.sol')
 
 const itRunsProxyRoundCorrectly = async addresses => {
-  describe.only('when running a round', async () => {
+  describe('when running a round', async () => {
     let bonding,
       juriFeesToken,
       juriNode1,
@@ -17,11 +17,19 @@ const itRunsProxyRoundCorrectly = async addresses => {
       proxyMock
 
     beforeEach(async () => {
+      poolUser = addresses[0]
+      juriNode1 = addresses[1]
+      juriNode2 = addresses[2]
+      juriNode3 = addresses[3]
+      juriNode4 = addresses[4]
+      juriFoundation = addresses[5]
+
       juriFeesToken = await ERC20Mintable.new()
       juriToken = await ERC20Mintable.new()
       proxyMock = await JuriNetworkProxyMock.new(
         juriFeesToken.address,
         juriToken.address,
+        juriFoundation,
         ether('1000'),
         10,
         20,
@@ -29,12 +37,6 @@ const itRunsProxyRoundCorrectly = async addresses => {
         40
       )
       bonding = await JuriBonding.at(await proxyMock.bonding())
-
-      poolUser = addresses[0]
-      juriNode1 = addresses[1]
-      juriNode2 = addresses[2]
-      juriNode3 = addresses[3]
-      juriNode4 = addresses[4]
 
       await Promise.all(
         addresses

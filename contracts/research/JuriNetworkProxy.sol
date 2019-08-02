@@ -107,6 +107,7 @@ contract JuriNetworkProxy is Ownable {
         IERC20 _juriFeesToken,
         IERC20 _juriToken,
         SkaleFileStorageInterface _skaleFileStorage,
+        address _juriFoundation,
         uint256 _timeForAddingHeartRateData,
         uint256 _timeForCommitmentStage,
         uint256 _timeForRevealStage,
@@ -131,6 +132,7 @@ contract JuriNetworkProxy is Ownable {
         bonding = new JuriBonding(
             this,
             _juriToken,
+            _juriFoundation,
             _minStakePerNode,
             _offlinePenalty,
             _notRevealPenalty,

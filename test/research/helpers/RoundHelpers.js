@@ -58,7 +58,6 @@ const removeEmptyKeys = obj => {
   }
 }
 
-// eslint-disable-next-line no-unused-vars
 const printState = async ({ proxy, nodes, users }) => {
   const roundIndex = await proxy.roundIndex()
 
@@ -312,30 +311,62 @@ const runFirstHalfOfRound = async ({
         users,
       })
     } else {
-      /* const currentLowestHashes = [
+      if (i > 1) {
+        const currentLowestHashesBN = [
           await proxy.getUserWorkAssignmentHashes(2, users[0]),
           await proxy.getUserWorkAssignmentHashes(2, users[1]),
           await proxy.getUserWorkAssignmentHashes(2, users[2]),
           await proxy.getUserWorkAssignmentHashes(2, users[3]),
-        ].map(hashList =>
+        ]
+
+        /* .map(hashList =>
           hashList.map(hashBN => '0x' + hashBN.toString(16).padStart(64, '0'))
+        ) */
+
+        const newToAddHashesBN = proofIndexes[i].map(
+          proofIndex =>
+            new BN(
+              Web3Utils.soliditySha3(
+                '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
+                nodes[i],
+                proofIndex
+              ).slice(2),
+              16
+            )
         )
-  
-        const newToAddHashes = proofIndexes[i].map(proofIndex =>
-          Web3Utils.soliditySha3(
-            '0x00156c6c6f576f726c6448656c6c6f576f726c6448656c6c6f576f726c642100',
-            nodes[i],
-            proofIndex
-          )
+
+        const validNewAdditionHashes = newToAddHashesBN.filter(
+          (newToAddHashBN, i) =>
+            currentLowestHashesBN[i][0].gt(newToAddHashBN) ||
+            currentLowestHashesBN[i][1].gt(newToAddHashBN)
         )
-  
-        console.log({ currentLowestHashes, newToAddHashes }) */
-      await proxy.addWasCompliantDataCommitmentsForUsers(
-        users,
-        commitments,
-        proofIndexes[i],
-        { from: nodes[i] }
-      )
+
+        const validNewAdditionIndexes = validNewAdditionHashes.map(newHash =>
+          newToAddHashesBN.indexOf(newHash)
+        )
+
+        const mappedUsers = validNewAdditionIndexes.map(j => users[j])
+        const mappedCommitments = validNewAdditionIndexes.map(
+          j => commitments[j]
+        )
+        const mappedProofIndexes = validNewAdditionIndexes.map(
+          j => proofIndexes[i][j]
+        )
+
+        await proxy.addWasCompliantDataCommitmentsForUsers(
+          mappedUsers,
+          mappedCommitments,
+          mappedProofIndexes,
+          { from: nodes[i] }
+        )
+      } else {
+        await proxy.addWasCompliantDataCommitmentsForUsers(
+          users,
+          commitments,
+          proofIndexes[i],
+          { from: nodes[i] }
+        )
+      }
     }
   }
 
@@ -416,6 +447,7 @@ const runDissentRound = async ({
 
 module.exports = {
   findLowestHashProofIndexes,
+  printState,
   runDissentRound,
   runFirstHalfOfRound,
   runSetupRound,

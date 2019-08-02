@@ -75,6 +75,7 @@ contract JuriNetworkProxyMock {
     constructor(
         IERC20 _juriFeesToken,
         IERC20 _juriToken,
+        address _juriFoundation,
         uint256 _minStakePerNode,
         uint256 _offlinePenalty,
         uint256 _notRevealPenalty,
@@ -84,6 +85,7 @@ contract JuriNetworkProxyMock {
         bonding = new JuriBonding(
             JuriNetworkProxy(address(this)),
             _juriToken,
+            _juriFoundation,
             _minStakePerNode,
             _offlinePenalty,
             _notRevealPenalty,

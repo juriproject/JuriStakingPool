@@ -41,6 +41,9 @@ contract JuriBonding is Ownable {
     IERC20 public token;
     LinkedListLib.LinkedList stakingNodes;
 
+    address juriFoundation;
+    uint256 juriFoundationFunds;
+
     mapping (address => AllowedWithdrawalAfter) public allowedWithdrawalAmounts;
     mapping (uint256 => uint256) public stakingNodesAddressCount;
     mapping (uint256 => uint256) public totalNodesCount;
@@ -58,6 +61,7 @@ contract JuriBonding is Ownable {
     constructor(
         JuriNetworkProxy _proxy,
         IERC20 _token,
+        address _juriFoundation,
         uint256 _minStakePerNode,
         uint256 _offlinePenalty,
         uint256 _notRevealPenalty,
@@ -66,11 +70,14 @@ contract JuriBonding is Ownable {
     ) public {
         proxy = _proxy;
         token = _token;
+        juriFoundation = _juriFoundation;
         minStakePerNode = _minStakePerNode;
         offlinePenalty = _offlinePenalty;
         notRevealPenalty = _notRevealPenalty;
         incorrectResultPenalty = _incorrectResultPenalty;
         incorrectDissentPenalty = _incorrectDissentPenalty;
+
+        juriFoundationFunds = 0;
     }
 
     function slashStakeForBeingOffline(address _toSlashNode, address _dissentedUser) public {
@@ -312,6 +319,21 @@ contract JuriBonding is Ownable {
         }
     }
 
+    function withdrawJuriFoundationStake(uint256 _amount) external {
+        require(
+            msg.sender == juriFoundation,
+            'Only juriFoundation may withdraw their funds!'
+        );
+
+        require(
+            _amount <= juriFoundationFunds,
+            'Not enough funds to withdraw from jurFoundationFunds!'
+        );
+
+        juriFoundationFunds = juriFoundationFunds.sub(_amount);
+        token.transfer(juriFoundation, _amount);
+    }
+
     function moveToNextRound(uint256 _newRoundIndex) external onlyOwner {
         totalNodesCount[_newRoundIndex] = totalNodesCount[_newRoundIndex] > 0
             ? totalNodesCount[_newRoundIndex]
@@ -365,13 +387,17 @@ contract JuriBonding is Ownable {
             : stakeAfterTo.oldStake;
 
         uint256 slashedStake = stakeFrom.mul(_penalty).div(100);
+        uint256 slashedStakeHalf = slashedStake.div(2);
+
         uint256 newStakeFrom = stakeAfterFrom.newStake.sub(slashedStake);
-        uint256 newStakeTo = stakeAfterTo.newStake.add(slashedStake);
+        uint256 newStakeTo = stakeAfterTo.newStake.add(slashedStakeHalf);
 
         bondedStakes[_from]
             = ValidStakeAfter(stakeFrom, newStakeFrom, nextRoundIndex);
         bondedStakes[_to]
             = ValidStakeAfter(stakeTo, newStakeTo, nextRoundIndex);
+        juriFoundationFunds = juriFoundationFunds
+            .add(slashedStakeHalf);
 
         emit SlashedStake(_roundIndex, _from, _to, _penalty);
     }
