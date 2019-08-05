@@ -101,7 +101,7 @@ contract JuriNetworkProxy is Ownable {
 
     mapping (uint256 => uint256) public timesForStages;
     mapping (address => bool) public isRegisteredJuriStakingPool;
-    mapping (uint256 => JuriRound) private stateForRound;
+    mapping (uint256 => JuriRound) internal stateForRound;
 
     constructor(
         IERC20 _juriFeesToken,
@@ -421,7 +421,7 @@ contract JuriNetworkProxy is Ownable {
     function _increaseActivityCountForNode(
         address _node,
         uint256 _activityCount
-    ) private {
+    ) internal {
         stateForRound[roundIndex]
             .nodeStates[_node]
             .activityCount = _getCurrentStateForNode(_node)
@@ -431,7 +431,7 @@ contract JuriNetworkProxy is Ownable {
             = stateForRound[roundIndex].totalActivityCount.add(_activityCount);
     }
 
-    function _decrementActivityCountForNode(address _node) private {
+    function _decrementActivityCountForNode(address _node) internal {
         stateForRound[roundIndex]
             .nodeStates[_node]
             .activityCount
@@ -440,7 +440,7 @@ contract JuriNetworkProxy is Ownable {
             = stateForRound[roundIndex].totalActivityCount.sub(1);
     }
 
-    function _moveToNextStage() private {
+    function _moveToNextStage() internal {
         if (currentStage == Stages.DISSENTING_PERIOD) {
             currentStage = dissentedUsers.length > 0
                 ? Stages.DISSENTS_NODES_ADDING_RESULT_COMMITMENTS
@@ -456,7 +456,7 @@ contract JuriNetworkProxy is Ownable {
         address[] memory _users,
         bytes32[] memory _wasCompliantDataCommitments,
         uint256[] memory _proofIndices
-    ) private {
+    ) internal {
         address node = msg.sender;
 
         require(
@@ -502,7 +502,7 @@ contract JuriNetworkProxy is Ownable {
         address[] memory _users,
         bool[] memory _wasCompliantData,
         bytes32[] memory _randomNonces
-    ) private {
+    ) internal {
         address node = msg.sender;
 
         require(
@@ -549,28 +549,28 @@ contract JuriNetworkProxy is Ownable {
     }
 
     function _getStateForCurrentRound()
-        private
+        internal
         view
         returns (JuriRound storage) {
         return stateForRound[roundIndex];
     }
 
     function _getCurrentStateForUser(address _user)
-        private
+        internal
         view
         returns (UserState storage) {
         return stateForRound[roundIndex].userStates[_user];
     }
 
     function _getCurrentStateForNode(address _node)
-        private
+        internal
         view
         returns (NodeState storage) {
         return stateForRound[roundIndex].nodeStates[_node];
     }
 
     function _getCurrentStateForNodeForUser(address _node, address _user)
-        private
+        internal
         view
         returns (NodeForUserState storage) {
         return stateForRound[roundIndex].nodeStates[_node].nodeForUserStates[_user];
@@ -580,7 +580,7 @@ contract JuriNetworkProxy is Ownable {
         address _user,
         address _node,
         uint256 _proofIndex
-    ) private returns (bool) {
+    ) internal returns (bool) {
         UserState storage userState = _getCurrentStateForUser(_user);
 
         uint256 currentHighestHash = _getCurrentHighestHashForUser(_user);
@@ -631,7 +631,7 @@ contract JuriNetworkProxy is Ownable {
     }
 
     function _getCurrentHighestHashForUser(address _user)
-        private
+        internal
         view
         returns (uint256) {
         MaxHeapLibrary.heapStruct storage verifierHashesMaxHeap
@@ -647,7 +647,7 @@ contract JuriNetworkProxy is Ownable {
 
     function _removeMaxVerifierHashForUser(
         address _user
-    ) private {
+    ) internal {
         MaxHeapLibrary.heapStruct storage verifierHashesMaxHeap
             = _getCurrentStateForUser(_user).verifierHashesMaxHeap;
         address removedNode = verifierHashesMaxHeap.removeMax();
@@ -670,7 +670,7 @@ contract JuriNetworkProxy is Ownable {
         address _node,
         address _user,
         uint256 _verifierHash
-    ) private {        
+    ) internal {        
         MaxHeapLibrary.heapStruct storage verifierHashesMaxHeap
             = _getCurrentStateForUser(_user).verifierHashesMaxHeap;
         verifierHashesMaxHeap.insert(_node, _verifierHash);

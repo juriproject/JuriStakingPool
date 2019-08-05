@@ -112,6 +112,11 @@ contract JuriNetworkProxyMock {
         bonding.moveToNextRound(roundIndex);
     }
 
+    function increaseNodeActivity(address _node) public {
+        stateForRound[roundIndex].nodeStates[_node].activityCount++;
+        stateForRound[roundIndex].totalActivityCount++;
+    }
+
     function addComplianceDataForUsers(
         address[] memory _users,
         int256[] memory _complianceData
