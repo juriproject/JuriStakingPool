@@ -112,6 +112,16 @@ contract JuriNetworkProxyMock {
         bonding.moveToNextRound(roundIndex);
     }
 
+    function addComplianceDataForUsers(
+        address[] memory _users,
+        int256[] memory _complianceData
+    ) public {
+        for (uint256 i = 0; i < _users.length; i++) {
+            stateForRound[roundIndex].userStates[_users[i]].userComplianceData
+                = _complianceData[i];
+        }
+    }
+
     function getUserWorkAssignmentHashes(uint256 _roundIndex, address _user)
         public
         view

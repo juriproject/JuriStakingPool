@@ -20,8 +20,8 @@ const ERC20Mintable = artifacts.require('./lib/ERC20Mintable.sol')
 const JuriStakingPool = artifacts.require('./JuriStakingPool.sol')
 
 const asyncForEach = async ({ array, callback }) => {
-  for (let index = 0; index < array.length; index++) {
-    await callback(array[index], index, array)
+  for (let i = 0; i < array.length; i++) {
+    await callback(array[i], i, array)
   }
 }
 

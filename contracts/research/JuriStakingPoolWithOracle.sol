@@ -6,6 +6,33 @@ import "../JuriStakingPool.sol";
 contract JuriStakingPoolWithOracle is JuriStakingPool {
     JuriNetworkProxy public proxy;
 
+    constructor(
+        JuriNetworkProxy _proxy,
+        IERC20 _token,
+        uint256 _startTime,
+        uint256 _periodLength,
+        uint256 _feePercentage,
+        uint256 _compliantGainPercentage,
+        uint256 _maxNonCompliantPenaltyPercentage,
+        uint256 _minStakePerUser,
+        uint256 _maxStakePerUser,
+        uint256 _maxTotalStake,
+        address _juriAddress
+    ) JuriStakingPool(
+        _token,
+        _startTime,
+        _periodLength,
+        _feePercentage,
+        _compliantGainPercentage,
+        _maxNonCompliantPenaltyPercentage,
+        _minStakePerUser,
+        _maxStakePerUser,
+        _maxTotalStake,
+        _juriAddress
+    ) public {
+        proxy = _proxy;
+    }
+
     /**
      * @dev Add user's compliancy data for current or past periods.
      * @param _updateIterationCount The number defining the max for how much compliance
@@ -44,6 +71,10 @@ contract JuriStakingPoolWithOracle is JuriStakingPool {
 
             complianceDataAtIndex[complianceDataIndex][user] = wasCompliant;
         }
+
+        currentStakingRound.addComplianceDataIndex
+            = currentStakingRound.addComplianceDataIndex
+                .add(_updateIterationCount);
 
         if (currentStakingRound.addComplianceDataIndex >= users.length) {
             complianceDataIndex++;

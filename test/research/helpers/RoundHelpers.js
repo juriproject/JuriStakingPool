@@ -1,7 +1,12 @@
 const Heap = require('heap')
 
-const { BN, time } = require('openzeppelin-test-helpers')
+const { BN, ether, time } = require('openzeppelin-test-helpers')
 const Web3Utils = require('web3-utils')
+
+const JuriStakingPoolWithOracle = artifacts.require(
+  'JuriStakingPoolWithOracle.sol'
+)
+const ERC20Mintable = artifacts.require('ERC20Mintable.sol')
 
 const { duration, increase } = time
 
@@ -445,10 +450,96 @@ const runDissentRound = async ({
   await proxy.moveToSlashingPeriod()
 }
 
+const approveAndAddUser = ({ pool, stake, token, user }) =>
+  token
+    .approve(pool.address, stake, { from: user })
+    .then(() => pool.addUserInNextPeriod(stake, { from: user }))
+
+const deployJuriStakingPool = async ({
+  addresses,
+  networkProxy,
+  periodLength,
+  feePercentage,
+  compliantGainPercentage,
+  maxNonCompliantPenaltyPercentage,
+  minStakePerUser,
+  maxStakePerUser,
+  maxTotalStake,
+  juriAddress,
+}) => {
+  const token = await ERC20Mintable.new()
+  await Promise.all(addresses.map(user => token.mint(user, ether('200'))))
+
+  const startTime = (await time.latest()).add(time.duration.seconds(20))
+  const pool = await JuriStakingPoolWithOracle.new(
+    networkProxy.address,
+    token.address,
+    startTime,
+    periodLength,
+    feePercentage,
+    compliantGainPercentage,
+    maxNonCompliantPenaltyPercentage,
+    minStakePerUser,
+    maxStakePerUser,
+    maxTotalStake,
+    juriAddress
+  )
+
+  return { pool, token }
+}
+
+const asyncForEach = async ({ array, callback }) => {
+  for (let i = 0; i < array.length; i++) {
+    await callback(array[i], i, array)
+  }
+}
+
+const initialPoolSetup = async ({
+  pool,
+  poolStakes,
+  poolUsers,
+  proxyMock,
+  token,
+}) => {
+  await token.approve(pool.address, ether('100'))
+  await pool.addOwnerFunds(ether('100'))
+
+  await asyncForEach({
+    array: poolUsers,
+    callback: async (user, i) =>
+      approveAndAddUser({
+        pool,
+        stake: poolStakes[i],
+        token,
+        user,
+      }),
+  })
+
+  await time.increase(duration.days(7))
+
+  await pool.checkNewAddedComplianceData(50)
+  await pool.firstUpdateStakeForNextXAmountOfUsers(50)
+  await pool.secondUpdateStakeForNextXAmountOfUsers(50)
+}
+
+const runPoolRound = async ({ complianceData, pool, proxyMock, poolUsers }) => {
+  await time.increase(duration.days(7))
+
+  await proxyMock.incrementRoundIndex()
+  await proxyMock.addComplianceDataForUsers(poolUsers, complianceData)
+
+  await pool.checkNewAddedComplianceData(50)
+  await pool.firstUpdateStakeForNextXAmountOfUsers(50)
+  await pool.secondUpdateStakeForNextXAmountOfUsers(50)
+}
+
 module.exports = {
+  deployJuriStakingPool,
   findLowestHashProofIndexes,
+  initialPoolSetup,
   printState,
   runDissentRound,
   runFirstHalfOfRound,
+  runPoolRound,
   runSetupRound,
 }
