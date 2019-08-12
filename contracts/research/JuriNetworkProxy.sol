@@ -97,6 +97,7 @@ contract JuriNetworkProxy is Ownable {
     uint256 public lastStageUpdate;
     uint256 public totalJuriFees;
     uint256 public nodeVerifierCount;
+    address[] public registeredJuriStakingPools;
     address[] public dissentedUsers;
 
     mapping (uint256 => uint256) public timesForStages;
@@ -139,7 +140,7 @@ contract JuriNetworkProxy is Ownable {
             _incorrectResultPenalty,
             _incorrectDissentPenalty
         );
-        registerJuriStakingPool(address(bonding));
+        isRegisteredJuriStakingPool[address(bonding)] = true;
 
         skaleFileStorage = _skaleFileStorage;
         juriFeesToken = _juriFeesToken;
@@ -155,15 +156,40 @@ contract JuriNetworkProxy is Ownable {
 
     function registerJuriStakingPool(address _poolAddress) public onlyOwner {
         isRegisteredJuriStakingPool[_poolAddress] = true;
+        registeredJuriStakingPools.push(_poolAddress);
     }
 
-    function removeJuriStakingPool(address _poolAddress) public onlyOwner {
+    function removeJuriStakingPool(address _poolAddress, uint256 _removalIndex) public onlyOwner {
+        require(
+            registeredJuriStakingPools.length > 0,
+            'Registered Juri Staking Pools list is empty!'
+        );
+        require(
+            registeredJuriStakingPools[_removalIndex] == _poolAddress,
+            'Removal index must match pool address!'
+        );
+
         isRegisteredJuriStakingPool[_poolAddress] = false;
+        registeredJuriStakingPools[_removalIndex]
+            = registeredJuriStakingPools[registeredJuriStakingPools.length.sub(1)];
+        registeredJuriStakingPools.length--;
     }
 
     // TODO remove
     function debugIncreaseRoundIndex() public onlyOwner {
         roundIndex++;
+    }
+
+    // TODO remove
+    function moveToNextStage() public {
+        currentStage = Stages((uint256(currentStage) + 1) % 7);
+        lastStageUpdate = now;
+    }
+
+    // TODO remove
+    function moveToUserAddingHeartRateDataStage() public {
+        currentStage = Stages.USER_ADDING_HEART_RATE_DATA;
+        lastStageUpdate = now;
     }
 
     function moveToNextRound()
@@ -207,6 +233,8 @@ contract JuriNetworkProxy is Ownable {
     ) public checkIfNextStage atStage(Stages.USER_ADDING_HEART_RATE_DATA) {
         // TODO verify signature, HOW ?
 
+        // TODO optional: enforce storage path fits msg.sender
+
         uint8 fileStatus
             = skaleFileStorage.getFileStatus(_heartRateDataStoragePath);
         require(
@@ -217,7 +245,6 @@ contract JuriNetworkProxy is Ownable {
         stateForRound[roundIndex]
             .userStates[msg.sender]
             .userWorkoutSignature = _userWorkoutSignature;
-
         stateForRound[roundIndex]
             .userStates[msg.sender]
             .userHeartRateDataStoragePath = _heartRateDataStoragePath;
@@ -414,6 +441,25 @@ contract JuriNetworkProxy is Ownable {
         );
 
         return stateForRound[_roundIndex].userStates[_user].userComplianceData;
+    }
+
+    function getUserWorkoutSignature(uint256 _roundIndex, address _user)
+        public
+        view
+        returns (bytes32) {
+        return stateForRound[_roundIndex].userStates[_user].userWorkoutSignature;
+    }
+
+    /**
+     * @dev Read registered staking pools.
+     * @return The registered staking pools.
+     */
+    function getRegisteredJuriStakingPools()
+        public
+        view
+        returns (address[] memory)
+    {
+        return registeredJuriStakingPools;
     }
 
     /// PRIVATE METHODS

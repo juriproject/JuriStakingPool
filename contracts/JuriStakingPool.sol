@@ -664,6 +664,18 @@ contract JuriStakingPool is Ownable {
     }
 
     /**
+     * @dev Read users in pool.
+     * @return The users in the pool.
+     */
+    function getUsers()
+        public
+        view
+        returns (address[] memory)
+    {
+        return users;
+    }
+
+    /**
      * @dev Returns index of user address in array. If not found, returns -1.
      * @param _user The user to be searched in array.
      * @param _array The array to be used.

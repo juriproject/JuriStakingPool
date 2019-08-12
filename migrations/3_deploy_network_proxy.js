@@ -1,39 +1,115 @@
+const BN = require('bn.js')
+
 const ERC20Mintable = artifacts.require('./lib/ERC20Mintable.sol')
+const JuriTokenMock = artifacts.require('./JuriTokenMock.sol')
 const JuriNetworkProxy = artifacts.require('./JuriNetworkProxy.sol')
+const JuriStakingPoolWithOracleMock = artifacts.require(
+  'JuriStakingPoolWithOracleMock'
+)
 const MaxHeapLibrary = artifacts.require('./MaxHeapLibrary.sol')
 const SkaleFileStorageMock = artifacts.require('./SkaleFileStorageMock.sol')
 
-const ONE_HOUR = 60 * 60
-const ONE_WEEK = ONE_HOUR * 24 * 7
+// const ONE_HOUR = 60 * 60
+// const ONE_WEEK = ONE_HOUR * 24 * 7
+
+const TWO_MINUTES = 2 * 60
+const FIFTEEN_MINUTES = 15 * 60
+
+const toEther = number => number.pow(new BN(18))
 
 module.exports = deployer => {
   deployer.then(async () => {
     await deployer.deploy(MaxHeapLibrary)
     await deployer.link(MaxHeapLibrary, [JuriNetworkProxy])
 
-    const skaleFileStorage = await deployer.deploy(SkaleFileStorageMock)
-    const juriToken = await deployer.deploy(ERC20Mintable)
+    // const skaleFileStorage = await deployer.deploy(SkaleFileStorageMock)
+    const skaleFileStorage = '0x69362535ec535f0643cbf62d16adedcaf32ee6f7'
+    const juriToken = await deployer.deploy(JuriTokenMock)
     const juriFeesToken = await deployer.deploy(ERC20Mintable)
     const juriFoundation = '0x15ae150d7dc03d3b635ee90b85219dbfe071ed35'
+    const oneEther = '1000000000000000000'
 
-    await deployer.deploy(
+    const networkProxy = await deployer.deploy(
       JuriNetworkProxy,
       juriFeesToken.address,
       juriToken.address,
+      skaleFileStorage, // skaleFileStorage.address,
       juriFoundation,
-      skaleFileStorage.address,
-      ONE_WEEK,
-      ONE_HOUR,
-      ONE_HOUR,
-      ONE_HOUR,
-      ONE_HOUR,
-      ONE_HOUR,
-      ONE_HOUR,
-      '10000000000000000000',
+      FIFTEEN_MINUTES, // ONE_WEEK,
+      TWO_MINUTES,
+      TWO_MINUTES,
+      TWO_MINUTES,
+      TWO_MINUTES,
+      TWO_MINUTES,
+      TWO_MINUTES,
+      oneEther,
       10,
       20,
-      40,
+      30,
       40
     )
+
+    const startTime = new BN(Math.round(Date.now() / 1000)).add(
+      new BN(1000000000000)
+    )
+    const periodLength = new BN(60 * 60 * 24 * 7)
+    const feePercentage = new BN(1)
+    const compliantGainPercentage = new BN(4)
+    const maxNonCompliantPenaltyPercentage = new BN(5)
+    const minStakePerUser = toEther(new BN(5))
+    const maxStakePerUser = toEther(new BN(100))
+    const maxTotalStake = toEther(new BN(50000))
+    const juriAddress = '0x15ae150d7dC03d3B635EE90b85219dBFe071ED35'
+
+    const stakingContract1 = await deployer.deploy(
+      JuriStakingPoolWithOracleMock,
+      networkProxy.address,
+      juriFeesToken.address,
+      startTime,
+      periodLength,
+      feePercentage,
+      compliantGainPercentage,
+      maxNonCompliantPenaltyPercentage,
+      minStakePerUser,
+      maxStakePerUser,
+      maxTotalStake,
+      juriAddress
+    )
+    const pool1Users = [
+      '0x7E0c6B2bE8010CcaB4F3C93CD34CD60E6582b21f',
+      '0x411fcF9AaB9F516cEaD0e6826A57775E23f19f5a',
+      '0xE3a58b4778E5B171249031c3b4defa6e8f58722c',
+    ]
+    await stakingContract1.insertUsers(pool1Users)
+
+    const stakingContract2 = await deployer.deploy(
+      JuriStakingPoolWithOracleMock,
+      networkProxy.address,
+      juriFeesToken.address,
+      startTime,
+      periodLength,
+      feePercentage,
+      compliantGainPercentage,
+      maxNonCompliantPenaltyPercentage,
+      minStakePerUser,
+      maxStakePerUser,
+      maxTotalStake,
+      juriAddress
+    )
+    const pool2Users = [
+      '0x26dd0efBa29886B71bDa2117C205aA6db2501973',
+      '0xab7F39f99d7aECc2E1516bd0c20c1204C21a0FfD',
+      '0x4eD79fa3348fEE0ffa3B0213B701daC561F364DA',
+    ]
+    await stakingContract2.insertUsers(pool2Users)
+
+    await networkProxy.registerJuriStakingPool(stakingContract1.address)
+    await networkProxy.registerJuriStakingPool(stakingContract2.address)
+
+    console.log({
+      networkProxyAddress: networkProxy.address,
+      stakingAddress1: stakingContract1.address,
+      stakingAddress2: stakingContract2.address,
+    })
   })
 }

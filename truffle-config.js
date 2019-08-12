@@ -54,11 +54,13 @@ function truffleConfig({
       },
       skaleMain: {
         provider: _getProvider(urlSkaleMain, process.env.KEY),
+        gas: 50000000,
         gasPrice: 0,
         network_id: '*',
       },
       skaleSide: {
         provider: _getProvider(urlSkaleSide, process.env.KEY),
+        gas: 50000000,
         gasPrice: 0,
         network_id: '*',
       },

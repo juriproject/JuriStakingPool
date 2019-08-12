@@ -363,7 +363,8 @@ contract JuriBonding is Ownable {
         stakingNodesList[0] = stakingNodes.list[HEAD][NEXT];
 
         for (uint256 i = 1; i < stakingNodesCount; i++) {
-            stakingNodesList[i] = stakingNodes.list[stakingNodesList[i]][NEXT];
+            stakingNodesList[i]
+                = stakingNodes.list[stakingNodesList[i.sub(1)]][NEXT];
         }
 
         return stakingNodesList;

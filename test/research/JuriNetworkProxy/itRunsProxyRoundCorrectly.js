@@ -17,7 +17,7 @@ const {
 const { duration, increase } = time
 
 const itRunsProxyRoundCorrectly = async addresses => {
-  describe('when running a round', async () => {
+  describe.only('when running a round', async () => {
     let bonding,
       incorrectDissentPenalty,
       incorrectResultPenalty,

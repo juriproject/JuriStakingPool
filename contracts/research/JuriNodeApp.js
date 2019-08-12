@@ -315,7 +315,7 @@ const runRound = async () => {
   // STAGE 5
   const dissentedUsers = await receiveDissentedUsers()
 
-  if (invalidAnswers.length > 0) {
+  if (dissentedUsers.length > 0) {
     // STAGE 5.1
     const { randomNumbers, wasCompliantData } = await sendCommitments({
       users: dissentedUsers,
