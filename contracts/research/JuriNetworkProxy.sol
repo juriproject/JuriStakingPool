@@ -38,8 +38,8 @@ contract JuriNetworkProxy is Ownable {
     }
 
     struct NodeForUserState {
-        bool hasRevealed;
         bytes32 complianceDataCommitment;
+        bool hasRevealed;
         bool givenNodeResult;
         bool hasDissented;
         bool wasAssignedToUser;
@@ -178,6 +178,15 @@ contract JuriNetworkProxy is Ownable {
     // TODO remove
     function debugIncreaseRoundIndex() public onlyOwner {
         roundIndex++;
+
+        bonding.moveToNextRound(roundIndex);
+
+        dissentedUsers = new address[](0);
+        // nodeVerifierCount = bonding.totalNodesCount(roundIndex).div(3);
+        nodeVerifierCount = bonding.stakingNodesAddressCount(roundIndex).div(3);
+        totalJuriFees = juriFeesToken.balanceOf(address(this));
+
+        currentStage = Stages.USER_ADDING_HEART_RATE_DATA;
     }
 
     // TODO remove
@@ -462,6 +471,29 @@ contract JuriNetworkProxy is Ownable {
         return registeredJuriStakingPools;
     }
 
+    function getDissentedUsers()
+        public
+        view
+        returns (address[] memory)
+    {
+        return dissentedUsers;
+    }
+
+    function getCurrentHighestHashForUser(address _user)
+        public
+        view
+        returns (uint256) {
+        MaxHeapLibrary.heapStruct storage verifierHashesMaxHeap
+            = _getCurrentStateForUser(_user).verifierHashesMaxHeap;
+
+        uint256 hashesCount = verifierHashesMaxHeap.getLength();
+        uint256 highestHash = hashesCount > 0
+            ? verifierHashesMaxHeap.getMax().value
+            : 0;
+
+        return highestHash;
+    }
+
     /// PRIVATE METHODS
 
     function _increaseActivityCountForNode(
@@ -538,8 +570,8 @@ contract JuriNetworkProxy is Ownable {
 
         if (currentStage == Stages.NODES_ADDING_RESULT_COMMITMENTS) {
             // dont count dissent rounds as activity
-            // nodes have an incentive to participate
-            // by not getting offline slashed
+            // because nodes have an incentive anyways to participate
+            // due to not getting offline slashed
             _increaseActivityCountForNode(node, _users.length);
         }
     }
@@ -571,6 +603,10 @@ contract JuriNetworkProxy is Ownable {
                 abi.encodePacked(wasCompliant, randomNonce)
             );
 
+            require(
+                nodeForUserState.wasAssignedToUser,
+                'You were not assigned to the user!'
+            );
             require(
                 !nodeForUserState.hasRevealed,
                 "You already added the complianceData!"
@@ -659,21 +695,6 @@ contract JuriNetworkProxy is Ownable {
         }
 
         return false;
-    }
-
-    function getCurrentHighestHashForUser(address _user)
-        public
-        view
-        returns (uint256) {
-        MaxHeapLibrary.heapStruct storage verifierHashesMaxHeap
-            = _getCurrentStateForUser(_user).verifierHashesMaxHeap;
-
-        uint256 hashesCount = verifierHashesMaxHeap.getLength();
-        uint256 highestHash = hashesCount > 0
-            ? verifierHashesMaxHeap.getMax().value
-            : 0;
-
-        return highestHash;
     }
 
     function _getCurrentHighestHashForUser(address _user)

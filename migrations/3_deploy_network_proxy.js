@@ -15,7 +15,7 @@ const SkaleFileStorageMock = artifacts.require('./SkaleFileStorageMock.sol')
 const TWO_MINUTES = 2 * 60
 const FIFTEEN_MINUTES = 15 * 60
 
-const toEther = number => number.pow(new BN(18))
+const toEther = number => number.mul(new BN(10).pow(new BN(18)))
 
 module.exports = deployer => {
   deployer.then(async () => {

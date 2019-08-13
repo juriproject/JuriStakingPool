@@ -52,7 +52,7 @@ contract JuriBonding is Ownable {
     mapping (uint256 => mapping (address => bool)) public changedStakeInRound;
     
     uint256 public totalBonded;
-    uint256 public minStakePerNode = 1000e18;
+    uint256 public minStakePerNode;
     uint256 public offlinePenalty;
     uint256 public notRevealPenalty;
     uint256 public incorrectResultPenalty;
