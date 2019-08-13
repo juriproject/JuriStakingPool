@@ -670,6 +670,11 @@ contract JuriNetworkProxy is Ownable {
         uint256 bondedStake = bonding.getBondedStakeOfNode(_node);
 
         require(
+            userWorkoutSignature != 0x0),
+            "The user did not add any heart rate data!"
+        );
+
+        require(
             _proofIndex < bondedStake.div(1e18),
             "The proof index must be smaller than the bonded stake per 1e18!"
         );
