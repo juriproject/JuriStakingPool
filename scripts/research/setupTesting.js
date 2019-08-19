@@ -82,7 +82,7 @@ const runSetup = async ({
   for (let i = 0; i < nodes.length; i++) {
     const node = nodes[i]
 
-    overwriteLog(`Mint 10,000 tokens to node ${i}...`)
+    overwriteLog(`   Mint 10,000 tokens to node ${i}...`)
 
     const tenThousandEther = oneEther.mul(new BN(10000))
 
@@ -109,7 +109,7 @@ const runSetup = async ({
       web3,
     })
 
-    overwriteLog(`Bond 10,000 token for node ${i}...`)
+    overwriteLog(`   Bond 10,000 token for node ${i}...`)
 
     await sendTx({
       data: BondingContract.methods
@@ -166,15 +166,15 @@ const exec = async () => {
     web3,
   })
 
-  const fileStoragePaths = await addUserHeartRateFiles({
+  /* const fileStoragePaths = await addUserHeartRateFiles({
     NetworkProxyContract,
     networkProxyAddress,
     originalAccount,
     originalPrivateKey,
     web3,
-  })
+  }) */
 
-  console.log({ fileStoragePaths })
+  // console.log({ fileStoragePaths })
 }
 
 exec()

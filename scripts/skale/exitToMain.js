@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 
-const { account, getWeb3, privateKey, schainJson, Tx } = require('./config')
+const { account, getWeb3_2, privateKey, schainJson, Tx } = require('./config')
 
 const exec = async () => {
-  const web3 = getWeb3(false)
+  const web3 = getWeb3_2(false)
   const tokenManagerAddress = schainJson.token_manager_address
   const ABI = schainJson.token_manager_abi
 
   const contract = new web3.eth.Contract(ABI, tokenManagerAddress)
 
   const exitToMain = contract.methods
-    .exitToMain(account, web3.utils.fromAscii('TEST MESSAGE: HELLO WORLD!'))
+    .exitToMain(account, web3.utils.toHex(web3.utils.toWei('1', 'ether')))
     .encodeABI()
 
   const rawTx = {
@@ -20,7 +20,7 @@ const exec = async () => {
     to: tokenManagerAddress,
     gasPrice: 0,
     gas: 8000000,
-    value: web3.utils.toHex(web3.utils.toWei('1', 'ether')),
+    value: 0,
   }
 
   const tx = new Tx(rawTx)

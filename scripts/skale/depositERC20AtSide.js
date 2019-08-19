@@ -1,9 +1,10 @@
-const fs = require('fs')
-const erc20PrivateTestnetJson = require('../../contracts/ERC20_private_skale_testnet.json')
+// const fs = require('fs')
+const erc20PrivateTestnetJson = require('../../contracts/schain_erc20_abis.json')
 
 const {
   account,
   getWeb3,
+  getWeb3_2,
   privateKey,
   privateTestnetJson,
   schainID,
@@ -20,11 +21,11 @@ const depositBoxABI = privateTestnetJson.deposit_box_abi
 const tokenManagerAddress = schainJson.token_manager_address
 const tokenManagerABI = schainJson.token_manager_abi
 
-const erc20ABI = erc20PrivateTestnetJson.zhelcoin_abi
-const erc20Address = erc20PrivateTestnetJson.zhelcoin_address
+const erc20ABI = erc20PrivateTestnetJson.eth_erc20_abi
+const erc20Address = erc20PrivateTestnetJson.eth_erc20_address
 
 const web3ForMainnet = getWeb3(false)
-const web3ForSchain = getWeb3(true)
+const web3ForSchain = getWeb3_2(true)
 
 const exec = async () => {
   const depositBox = new web3ForMainnet.eth.Contract(
@@ -42,7 +43,7 @@ const exec = async () => {
   const approve = contractERC20.methods
     .approve(
       depositBoxAddress,
-      web3ForMainnet.utils.toBN('1000000000000000000')
+      web3ForMainnet.utils.toHex(web3ForMainnet.utils.toWei('1', 'ether'))
     )
     .encodeABI()
 
@@ -51,11 +52,11 @@ const exec = async () => {
       schainID,
       erc20Address,
       accountForSchain,
-      web3ForMainnet.utils.toBN('1000000000000000000')
+      web3ForMainnet.utils.toHex(web3ForMainnet.utils.toWei('1', 'ether'))
     )
     .encodeABI()
 
-  const nonce = await web3ForMainnet.eth.getTransactionCount(accountForMainnet)
+  let nonce = await web3ForMainnet.eth.getTransactionCount(accountForMainnet)
 
   const rawTxApprove = {
     from: accountForMainnet,
@@ -95,7 +96,7 @@ const exec = async () => {
     )
     console.log({ depositReceipt })
 
-    const events = await tokenManager.getPastEvents(
+    /* const events = await tokenManager.getPastEvents(
       'ERC20TokenCreated',
       {
         filter: { contractThere: [erc20Address] },
@@ -127,7 +128,7 @@ const exec = async () => {
         console.log('Done, check ERC20_schain_proxy.json file in data folder.')
         process.exit(0)
       }
-    )
+    ) */
   } catch (error) {
     console.log({ error })
   }

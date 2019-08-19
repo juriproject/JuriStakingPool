@@ -16,9 +16,15 @@ const {
   nodes,
   privateKey,
   web3,
+  ZERO_ADDRESS,
 } = require('./config')
 
-const { addUserHeartRateFiles, sendTx, overwriteLog } = require('./helpers')
+const {
+  addUserHeartRateFiles,
+  filterAsync,
+  sendTx,
+  overwriteLog,
+} = require('./helpers')
 
 const { BN } = web3.utils
 const THRESHOLD = new BN(
@@ -32,7 +38,7 @@ let allNodes, times
 const sleep = require('util').promisify(setTimeout)
 
 const moveToNextStage = async ({ originalAccount, originalPrivateKey }) => {
-  overwriteLog('Moving to next stage...')
+  console.log('Moving to next stage...')
   await sendTx({
     data: NetworkProxyContract.methods.moveToNextStage().encodeABI(),
     from: originalAccount,
@@ -40,7 +46,7 @@ const moveToNextStage = async ({ originalAccount, originalPrivateKey }) => {
     privateKey: originalPrivateKey,
     web3,
   })
-  overwriteLog('Moved to next stage!')
+  console.log('Moved to next stage!')
 }
 
 const moveToAddingCommitmentsStage = async ({
@@ -74,13 +80,12 @@ const findAllNotRevealedNodes = async ({ allNodes, allUsers, roundIndex }) => {
         .call()
 
       if (
-        value !== 0x0 &&
+        value !== ZERO_ADDRESS &&
         !(await NetworkProxyContract.methods
           .getHasRevealed(roundIndex, node, user)
           .call())
-      ) {
+      )
         notRevealedNodes.push({ toSlash: node, user })
-      }
     }
   }
 
@@ -100,12 +105,12 @@ const findAllOfflineNodes = async ({
       const user = dissentedUsers[j]
 
       const userWasDissented = await NetworkProxyContract.methods
-        .dissented(roundIndex, user)
+        .getDissented(roundIndex, user)
         .call()
 
       if (userWasDissented) {
         const commitment = await NetworkProxyContract.methods
-          .getUserComplianceDataCommitment(roundIndex, node, _dissentedUser)
+          .getUserComplianceDataCommitment(roundIndex, node, user)
           .call()
 
         if (commitment == 0x0) offlineNodes.push({ toSlash: node, user })
@@ -118,6 +123,7 @@ const findAllOfflineNodes = async ({
 
 const findAllIncorrectResultNodes = async ({
   allNodes,
+  bondingAddress,
   dissentedUsers,
   roundIndex,
 }) => {
@@ -129,11 +135,14 @@ const findAllIncorrectResultNodes = async ({
       const user = dissentedUsers[j]
 
       const givenAnswer = await NetworkProxyContract.methods
-        .givenNodeResults(node, roundIndex, user)
+        .getGivenNodeResult(roundIndex, node, user)
         .call()
-      const acceptedAnswer = await NetworkProxyContract.methods
-        .givenNodeResults(roundIndex, user)
-        .call()
+      const acceptedAnswer =
+        parseInt(
+          await NetworkProxyContract.methods
+            .getUserComplianceData(roundIndex, user)
+            .call({ from: bondingAddress })
+        ) >= 0
 
       if (givenAnswer !== acceptedAnswer)
         incorrectResultNodes.push({ toSlash: node, user })
@@ -156,13 +165,13 @@ const findAllIncorrectDissentNodes = async ({
       const user = dissentedUsers[j]
 
       const hasDissented = await NetworkProxyContract.methods
-        .hasDissented(node, roundIndex, user)
+        .getHasDissented(roundIndex, node, user)
         .call()
       const previousAnswer = await NetworkProxyContract.methods
-        .userComplianceDataBeforeDissents(roundIndex, user)
+        .getComplianceDataBeforeDissent(roundIndex, user)
         .call()
       const acceptedAnswer = await NetworkProxyContract.methods
-        .givenNodeResults(roundIndex, user)
+        .getGivenNodeResult(roundIndex, node, user)
         .call()
 
       if (hasDissented && previousAnswer === acceptedAnswer)
@@ -285,11 +294,12 @@ const retrieveAssignedUsers = async ({ myJuriNodeAddress, roundIndex }) => {
 const sendCommitments = async ({
   myJuriNodeAddress,
   myJuriNodePrivateKey,
+  nodeIndex,
   users,
   isDissent,
+  wasCompliantData,
 }) => {
   const userAddresses = []
-  const wasCompliantData = []
   const wasCompliantDataCommitments = []
   const proofIndices = []
   const randomNumbers = []
@@ -300,26 +310,32 @@ const sendCommitments = async ({
     // TODO
     /* const heartRateData = await downloadHeartRateData(address)
     const wasCompliant = verifyHeartRateData(heartRateData) */
-    const wasCompliant = true
+    const wasCompliant = wasCompliantData[i]
     const randomNumber = '0x' + crypto.randomBytes(32).toString('hex')
     const commitmentHash = Web3Utils.soliditySha3(wasCompliant, randomNumber)
 
-    userAddresses.push(address)
-    wasCompliantData.push(wasCompliant)
+    userAddresses.push(isDissent ? users[i] : address)
     wasCompliantDataCommitments.push(commitmentHash)
     proofIndices.push(lowestIndex)
     randomNumbers.push(randomNumber)
   }
 
+  if (!isDissent)
+    console.log({
+      nodeIndex,
+      proofIndices,
+    })
+
   const addMethod = isDissent
     ? 'addDissentWasCompliantDataCommitmentsForUsers'
     : 'addWasCompliantDataCommitmentsForUsers'
+  const addMethodInput = isDissent
+    ? [userAddresses, wasCompliantDataCommitments]
+    : [userAddresses, wasCompliantDataCommitments, proofIndices]
 
   await sendTx({
     data: NetworkProxyContract.methods[addMethod](
-      userAddresses,
-      wasCompliantDataCommitments,
-      proofIndices
+      ...addMethodInput
     ).encodeABI(),
     from: myJuriNodeAddress,
     privateKey: myJuriNodePrivateKey,
@@ -327,7 +343,7 @@ const sendCommitments = async ({
     web3,
   })
 
-  return { randomNumbers, wasCompliantData }
+  return { randomNumbers }
 }
 
 const sendReveals = async ({
@@ -338,7 +354,7 @@ const sendReveals = async ({
   myJuriNodeAddress,
   myJuriNodePrivateKey,
 }) => {
-  const userAddresses = users.map(({ address }) => address)
+  const userAddresses = isDissent ? users : users.map(({ address }) => address)
   const addMethod = isDissent
     ? 'addDissentWasCompliantDataForUsers'
     : 'addWasCompliantDataForUsers'
@@ -363,6 +379,7 @@ const checkForInvalidAnswers = async ({
   wasCompliantData,
   myJuriNodeAddress,
   myJuriNodePrivateKey,
+  nodeIndex,
 }) => {
   for (let i = 0; i < users.length; i++) {
     const { address } = users[i]
@@ -371,21 +388,36 @@ const checkForInvalidAnswers = async ({
       .getUserComplianceData(roundIndex, address)
       .call({ from: bondingAddress })
 
-    console.log({
-      acceptedAnswer,
-      wasCompliantData: wasCompliantData[i],
-    })
+    const wasAssignedToUser = await NetworkProxyContract.methods
+      .getWasAssignedToUser(roundIndex, myJuriNodeAddress, address)
+      .call()
 
-    if (!!parseInt(acceptedAnswer) !== wasCompliantData[i])
-      await sendTx({
-        data: NetworkProxyContract.methods
-          .dissentToAcceptedAnswer(address)
-          .encodeABI(),
-        from: myJuriNodeAddress,
-        privateKey: myJuriNodePrivateKey,
-        to: networkProxyAddress,
-        web3,
-      })
+    const isDissented = await NetworkProxyContract.methods
+      .getDissented(roundIndex, address)
+      .call()
+
+    if (
+      wasAssignedToUser &&
+      parseInt(acceptedAnswer) >= 0 !== wasCompliantData[i]
+      // = 0 because 0 is considered a compliant user (when in doubt, give user the benefit)
+    ) {
+      try {
+        await sendTx({
+          data: NetworkProxyContract.methods
+            .dissentToAcceptedAnswer(address)
+            .encodeABI(),
+          from: myJuriNodeAddress,
+          privateKey: myJuriNodePrivateKey,
+          to: networkProxyAddress,
+          web3,
+        })
+      } catch (error) {
+        console.log({
+          nodeIndex,
+          DissentError: error.message,
+        })
+      }
+    }
   }
 }
 
@@ -426,6 +458,7 @@ const slashDishonestNodes = async ({
   BondingContract,
   myJuriNodeAddress,
   myJuriNodePrivateKey,
+  nodeIndex,
   roundIndex,
 }) => {
   const notRevealedNodes = await findAllNotRevealedNodes({
@@ -440,6 +473,7 @@ const slashDishonestNodes = async ({
   })
   const incorrectResultNodes = await findAllIncorrectResultNodes({
     allNodes,
+    bondingAddress,
     dissentedUsers,
     roundIndex,
   })
@@ -449,60 +483,131 @@ const slashDishonestNodes = async ({
     roundIndex,
   })
 
+  console.log({
+    nodeIndex,
+    notRevealedNodes: notRevealedNodes.map(({ toSlash }) =>
+      allNodes.indexOf(toSlash)
+    ),
+  })
+
   for (let i = 0; i < notRevealedNodes.length; i++) {
     const { toSlash, user } = notRevealedNodes[i]
 
-    await sendTx({
-      data: BondingContract.methods
-        .slashStakeForNotRevealing(toSlash, user)
-        .encodeABI(),
-      from: myJuriNodeAddress,
-      privateKey: myJuriNodePrivateKey,
-      to: bondingAddress,
-      web3,
-    })
+    console.log(
+      `Slash not revealed [node=${toSlash}] for [user=${user}]... (node ${nodeIndex})`
+    )
+
+    try {
+      await sendTx({
+        data: BondingContract.methods
+          .slashStakeForNotRevealing(toSlash, user)
+          .encodeABI(),
+        from: myJuriNodeAddress,
+        privateKey: myJuriNodePrivateKey,
+        to: bondingAddress,
+        web3,
+      })
+      console.log(`Successfully slashed not revealed (node ${nodeIndex})!`)
+    } catch (error) {
+      console.log(
+        `NotRevealSlashError: ${error.message.slice(
+          error.message.indexOf('revert') === -1
+            ? 0
+            : error.message.indexOf('revert')
+        )} (node ${nodeIndex})`
+      )
+    }
   }
 
   for (let i = 0; i < offlineNodes.length; i++) {
-    const { toSlash, user } = notRevealedNodes[i]
+    const { toSlash, user } = offlineNodes[i]
 
-    await sendTx({
-      data: BondingContract.methods
-        .slashStakeForBeingOffline(toSlash, user)
-        .encodeABI(),
-      from: myJuriNodeAddress,
-      privateKey: myJuriNodePrivateKey,
-      to: bondingAddress,
-      web3,
-    })
+    console.log(
+      `Slash offline [node=${toSlash}] for [user=${user}]... (node ${nodeIndex})`
+    )
+
+    try {
+      await sendTx({
+        data: BondingContract.methods
+          .slashStakeForBeingOffline(toSlash, user)
+          .encodeABI(),
+        from: myJuriNodeAddress,
+        privateKey: myJuriNodePrivateKey,
+        to: bondingAddress,
+        web3,
+      })
+      console.log(`Successfully slashed for offline (node ${nodeIndex})!`)
+    } catch (error) {
+      console.log(
+        `OfflineSlashError: ${error.message.slice(
+          error.message.indexOf('revert') === -1
+            ? 0
+            : error.message.indexOf('revert')
+        )} (node ${nodeIndex})`
+      )
+    }
   }
 
   for (let i = 0; i < incorrectResultNodes.length; i++) {
-    const { toSlash, user } = notRevealedNodes[i]
+    const { toSlash, user } = incorrectResultNodes[i]
 
-    await sendTx({
-      data: BondingContract.methods
-        .slashStakeForIncorrectResult(toSlash, user)
-        .encodeABI(),
-      from: myJuriNodeAddress,
-      privateKey: myJuriNodePrivateKey,
-      to: bondingAddress,
-      web3,
-    })
+    console.log(
+      `Slash incorrect result [node=${toSlash}] for [user=${user}]... (node ${nodeIndex})`
+    )
+
+    try {
+      await sendTx({
+        data: BondingContract.methods
+          .slashStakeForIncorrectResult(toSlash, user)
+          .encodeABI(),
+        from: myJuriNodeAddress,
+        privateKey: myJuriNodePrivateKey,
+        to: bondingAddress,
+        web3,
+      })
+      console.log(
+        `Successfully slashed for incorrect result (node ${nodeIndex})!`
+      )
+    } catch (error) {
+      console.log(
+        `IncorrectResultSlashError: ${error.message.slice(
+          error.message.indexOf('revert') === -1
+            ? 0
+            : error.message.indexOf('revert')
+        )} (node ${nodeIndex})`
+      )
+    }
   }
 
   for (let i = 0; i < incorrectDissentNodes.length; i++) {
-    const { toSlash, user } = notRevealedNodes[i]
+    const { toSlash, user } = incorrectDissentNodes[i]
 
-    await sendTx({
-      data: BondingContract.methods
-        .slashStakeForIncorrectDissenting(toSlash, user)
-        .encodeABI(),
-      from: myJuriNodeAddress,
-      privateKey: myJuriNodePrivateKey,
-      to: bondingAddress,
-      web3,
-    })
+    console.log(
+      `Slash incorrect dissent [node=${toSlash}] for [user=${user}]... (node ${nodeIndex})`
+    )
+
+    try {
+      await sendTx({
+        data: BondingContract.methods
+          .slashStakeForIncorrectDissenting(toSlash, user)
+          .encodeABI(),
+        from: myJuriNodeAddress,
+        privateKey: myJuriNodePrivateKey,
+        to: bondingAddress,
+        web3,
+      })
+      console.log(
+        `Succesfully slashed for incorrect dissent (node ${nodeIndex})!`
+      )
+    } catch (error) {
+      console.log(
+        `IncorrectDissentSlashError: ${error.message.slice(
+          error.message.indexOf('revert') === -1
+            ? 0
+            : error.message.indexOf('revert')
+        )} (node ${nodeIndex})`
+      )
+    }
   }
 }
 
@@ -555,27 +660,44 @@ const runRound = async ({
 
     console.log({
       nodeIndex,
+      bondedStake: (await BondingContract.methods
+        .getBondedStakeOfNode(allNodes[nodeIndex])
+        .call()).toString(),
+    })
+
+    /* console.log({
+      nodeIndex,
       assignedUsersCommitments: assignedUsers.map(
         ({ lowestHash }) => lowestHash
       ),
-    })
+    }) */
+
+    const wasCompliantDataAllNodes = [
+      new Array(uniqUsers.length).fill(false),
+      new Array(uniqUsers.length).fill(true),
+      new Array(uniqUsers.length).fill(false),
+      new Array(uniqUsers.length).fill(false),
+      new Array(uniqUsers.length).fill(false),
+      new Array(uniqUsers.length).fill(false),
+    ]
+    const wasCompliantData = wasCompliantDataAllNodes[nodeIndex]
 
     console.log(`Sending commitments... (node ${nodeIndex})`)
-    const { randomNumbers, wasCompliantData } = await sendCommitments({
+    const { randomNumbers } = await sendCommitments({
       users: assignedUsers,
       isDissent: false,
       myJuriNodeAddress,
       myJuriNodePrivateKey,
+      nodeIndex,
+      wasCompliantData,
     })
     console.log(`Sent commitments (node ${nodeIndex})!`)
     process.stdout.write('\n')
 
-    console.log({ nodeIndex, randomNumbers, wasCompliantData })
-
     // await sleep(times[timeForCommitmentStage])
     if (isMovingStage) {
       await moveToNextStage({ originalAccount, originalPrivateKey })
-      await sleep(9500)
+      await sleep(9980)
     } else {
       await sleep(10000)
     }
@@ -600,21 +722,23 @@ const runRound = async ({
 
     // STAGE 3
     console.log(`Sending reveals... (node ${nodeIndex})`)
-    await sendReveals({
-      users: mappedAssignedUsers,
-      randomNumbers: mappedRandomNumbers,
-      wasCompliantData: mappedWasCompliantData,
-      isDissent: false,
-      myJuriNodeAddress,
-      myJuriNodePrivateKey,
-    })
+
+    if (nodeIndex !== 3)
+      await sendReveals({
+        users: mappedAssignedUsers,
+        randomNumbers: mappedRandomNumbers,
+        wasCompliantData: mappedWasCompliantData,
+        isDissent: false,
+        myJuriNodeAddress,
+        myJuriNodePrivateKey,
+      })
     console.log(`Sent reveals (node ${nodeIndex})!`)
     process.stdout.write('\n')
 
     // await sleep(times[timeForRevealStage])
     if (isMovingStage) {
       await moveToNextStage({ originalAccount, originalPrivateKey })
-      await sleep(9500)
+      await sleep(9980)
     } else {
       await sleep(10000)
     }
@@ -628,6 +752,7 @@ const runRound = async ({
       wasCompliantData,
       myJuriNodeAddress,
       myJuriNodePrivateKey,
+      nodeIndex,
     })
     console.log(`Dissented to invalid answers (node ${nodeIndex})!`)
     process.stdout.write('\n')
@@ -635,51 +760,129 @@ const runRound = async ({
     // await sleep(times[timeForDissentStage])
     if (isMovingStage) {
       await moveToNextStage({ originalAccount, originalPrivateKey })
-      await sleep(9500)
+      await sleep(9980)
     } else {
       await sleep(10000)
     }
 
-    // STAGE 5
-    const dissentedUsers = await receiveDissentedUsers()
-
-    console.log({ nodeIndex, dissentedUsers })
-
-    if (dissentedUsers.length > 0) {
-      // STAGE 5.1
-      const { randomNumbers, wasCompliantData } = await sendCommitments({
-        users: dissentedUsers,
-        isDissent: true,
-        myJuriNodeAddress,
-        myJuriNodePrivateKey,
+    console.log('BEFORE DISSENT RESULTS')
+    for (let i = 0; i < uniqUsers.length; i++) {
+      console.log({
+        user: uniqUsers[i],
+        complianceData: (await NetworkProxyContract.methods
+          .getUserComplianceData(roundIndex, uniqUsers[i])
+          .call({ from: bondingAddress })).toString(),
       })
+    }
+
+    // STAGE 5
+    const allDissentedUsers = await receiveDissentedUsers()
+    const dissentedUsers = await filterAsync(
+      allDissentedUsers,
+      async user =>
+        !(await NetworkProxyContract.methods
+          .getHasRevealed(roundIndex, myJuriNodeAddress, user)
+          .call()) &&
+        (await NetworkProxyContract.methods
+          .getUserComplianceDataCommitment(roundIndex, myJuriNodeAddress, user)
+          .call()) !== ZERO_ADDRESS
+    )
+
+    console.log({
+      nodeIndex,
+      allDissentedUsers,
+      dissentedUsers,
+    })
+
+    if (allDissentedUsers.length > 0) {
+      // STAGE 5.1
+
+      let randomNumbers
+
+      if (dissentedUsers.length > 0) {
+        console.log(`Sending dissent commitments... (node ${nodeIndex})`)
+        randomNumbers = (await sendCommitments({
+          users: dissentedUsers,
+          isDissent: true,
+          myJuriNodeAddress,
+          myJuriNodePrivateKey,
+          nodeIndex,
+          wasCompliantData,
+        })).randomNumbers
+        console.log(`Sent dissent commitments (node ${nodeIndex})!`)
+      }
 
       // await sleep(times[timeForDissentCommitmentStage])
       if (isMovingStage) {
         await moveToNextStage({ originalAccount, originalPrivateKey })
-        await sleep(9500)
+        await sleep(9980)
       } else {
         await sleep(10000)
       }
 
       // STAGE 5.2
-      await sendReveals({
-        users: dissentedUsers,
-        randomNumbers,
-        wasCompliantData,
-        isDissent: true,
-        myJuriNodeAddress,
-        myJuriNodePrivateKey,
-      })
+
+      if (dissentedUsers.length > 0) {
+        const dissentWasCompliantData = dissentedUsers
+          .map(user => uniqUsers.indexOf(user))
+          .filter(index => index >= 0)
+          .map(index => wasCompliantData[index])
+
+        console.log({ dissentWasCompliantData })
+
+        console.log(`Sending dissent reveals... (node ${nodeIndex})`)
+        await sendReveals({
+          users: dissentedUsers,
+          randomNumbers,
+          wasCompliantData: dissentWasCompliantData,
+          isDissent: true,
+          myJuriNodeAddress,
+          myJuriNodePrivateKey,
+        })
+        console.log(`Dissent reveals sent (node ${nodeIndex})!`)
+      }
 
       // await sleep(times[timeForDissentRevealStage])
       if (isMovingStage) {
         await moveToNextStage({ originalAccount, originalPrivateKey })
-        await sleep(9500)
+        await sleep(9980)
+      } else {
+        await sleep(10000)
+      }
+    } else {
+      if (isMovingStage) {
+        await moveToNextStage({ originalAccount, originalPrivateKey })
+        await moveToNextStage({ originalAccount, originalPrivateKey })
+        await sleep(9980)
       } else {
         await sleep(10000)
       }
     }
+
+    console.log('AFTER DISSENT RESULTS')
+    for (let i = 0; i < uniqUsers.length; i++) {
+      console.log({
+        user: uniqUsers[i],
+        complianceData: (await NetworkProxyContract.methods
+          .getUserComplianceData(roundIndex, uniqUsers[i])
+          .call({ from: bondingAddress })).toString(),
+      })
+    }
+
+    console.log(`Slashing dishonest nodes... (node ${nodeIndex})`)
+    await slashDishonestNodes({
+      allNodes,
+      allUsers: uniqUsers,
+      dissentedUsers,
+      bondingAddress,
+      BondingContract,
+      myJuriNodeAddress,
+      myJuriNodePrivateKey,
+      nodeIndex,
+      roundIndex,
+    })
+    console.log(`Dishonest nodes slashed (node ${nodeIndex})!`)
+    process.stdout.write('\n')
 
     // FINISH UP
     /* const balanceJuriTokenBefore = (await JuriTokenContract.methods
@@ -700,20 +903,6 @@ const runRound = async ({
   
     console.log({ balanceJuriTokenBefore, balanceJuriTokenAfter })
     console.log({ balanceJuriFeesTokenBefore, balanceJuriFeesTokenAfter }) */
-
-    console.log(`Slashing dishonest nodes... (node ${nodeIndex})`)
-    await slashDishonestNodes({
-      allNodes,
-      allUsers: uniqUsers,
-      dissentedUsers,
-      bondingAddress,
-      BondingContract,
-      myJuriNodeAddress,
-      myJuriNodePrivateKey,
-      roundIndex,
-    })
-    console.log(`Dishonest nodes slashed (node ${nodeIndex})!`)
-    process.stdout.write('\n')
 
     // await sleep(times[timeForSlashingStage])
 

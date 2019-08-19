@@ -3,6 +3,7 @@ const FilestorageContract = require('@skalenetwork/filestorage.js/src/Filestorag
 
 const {
   account,
+  getLocalWeb3,
   getWeb3,
   getWeb3Provider,
   privateKey,
@@ -16,9 +17,12 @@ const JuriTokenAbi = require('../../build/contracts/JuriTokenMock').abi
 const NetworkProxyAbi = require('../../build/contracts/JuriNetworkProxy').abi
 const PoolAbi = require('../../build/contracts/JuriStakingPoolWithOracle').abi
 
-const networkProxyAddress = '0xFA206c0d5d96ED2FCb993808cf5b4c7a7F21E78D'
+// const web3 = getWeb3(false)
+// const networkProxyAddress = '0x87558be0F69CDbF662b859EE251C0C455De14154'
 
-const web3 = getWeb3(false)
+const web3 = getLocalWeb3()
+const networkProxyAddress = '0xfaEd5728EFE7ab2f05EC3d7fA3117d3145642A8d'
+
 const fileStorage = new Filestorage(getWeb3Provider(false), false)
 const { BN } = web3.utils
 
@@ -30,13 +34,16 @@ const NetworkProxyContract = new web3.eth.Contract(
   networkProxyAddress
 )
 
-let bondingAdress, juriTokenAddress, juriFeesTokenAddress
+let bondingAddress, juriTokenAddress, juriFeesTokenAddress
+
+const ZERO_ADDRESS =
+  '0x0000000000000000000000000000000000000000000000000000000000000000'
 
 const getBondingAddress = async () => {
-  if (bondingAdress) return bondingAdress
+  if (bondingAddress) return bondingAddress
+  bondingAddress = await NetworkProxyContract.methods.bonding().call()
 
-  bondingAdress = await NetworkProxyContract.methods.bonding().call()
-  return bondingAdress
+  return bondingAddress
 }
 const getBondingContract = async () =>
   new web3.eth.Contract(BondingAbi, await getBondingAddress())
@@ -157,4 +164,5 @@ module.exports = {
   privateKey,
   users,
   web3,
+  ZERO_ADDRESS,
 }

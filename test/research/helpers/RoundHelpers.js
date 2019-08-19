@@ -494,13 +494,7 @@ const asyncForEach = async ({ array, callback }) => {
   }
 }
 
-const initialPoolSetup = async ({
-  pool,
-  poolStakes,
-  poolUsers,
-  proxyMock,
-  token,
-}) => {
+const initialPoolSetup = async ({ pool, poolStakes, poolUsers, token }) => {
   await token.approve(pool.address, ether('100'))
   await pool.addOwnerFunds(ether('100'))
 

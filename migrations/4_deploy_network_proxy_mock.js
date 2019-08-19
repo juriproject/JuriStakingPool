@@ -4,7 +4,7 @@ const MaxHeapLibrary = artifacts.require('./MaxHeapLibrary.sol')
 
 module.exports = deployer => {
   deployer.then(async () => {
-    await deployer.deploy(MaxHeapLibrary)
+    /* await deployer.deploy(MaxHeapLibrary)
     await deployer.link(MaxHeapLibrary, [JuriNetworkProxyMock])
 
     const juriToken = await deployer.deploy(ERC20Mintable)
@@ -21,6 +21,6 @@ module.exports = deployer => {
       20,
       40,
       40
-    )
+    ) */
   })
 }

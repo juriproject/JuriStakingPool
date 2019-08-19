@@ -182,7 +182,9 @@ contract JuriNetworkProxy is Ownable {
         bonding.moveToNextRound(roundIndex);
 
         dissentedUsers = new address[](0);
-        // nodeVerifierCount = bonding.totalNodesCount(roundIndex).div(3);
+        // nodeVerifierCount = bonding.totalNodesCount(roundIndex).div(3); // TODO
+    
+        // https://juriproject.slack.com/archives/CHKB3D1GF/p1565926038000200
         nodeVerifierCount = bonding.stakingNodesAddressCount(roundIndex).div(3);
         totalJuriFees = juriFeesToken.balanceOf(address(this));
 
@@ -541,38 +543,48 @@ contract JuriNetworkProxy is Ownable {
             _users.length == _wasCompliantDataCommitments.length,
             'Users length should match wasCompliantDataCommitments!'
         );
-
         require(
             _users.length == _proofIndices.length
             || currentStage == Stages.DISSENTS_NODES_ADDING_RESULT_COMMITMENTS,
             'Users length should match proofIndices!'
         );
 
+        uint256 validUserCount = 0;
+
         for (uint256 i = 0; i < _users.length; i++) {
             address user = _users[i];
             bytes32 wasCompliantCommitment = _wasCompliantDataCommitments[i];
 
-            if (!_getCurrentStateForUser(user).dissented) {
-                require(
-                    _verifyValidComplianceAddition(user, node, _proofIndices[i]),
-                    'Node not verified to add data!'
-                );
-            }
+            NodeForUserState memory nodeForUserState
+                = _getCurrentStateForNodeForUser(node, user);
+            require(
+                !nodeForUserState.hasRevealed,
+                "You already added the complianceData!"
+            );
 
-            if (_getCurrentStateForNodeForUser(node, user).complianceDataCommitment == 0x0) {
-                stateForRound[roundIndex]
-                    .nodeStates[node]
-                    .nodeForUserStates[user]
-                    .complianceDataCommitment
-                        = wasCompliantCommitment;
+            if (_getCurrentStateForUser(user).dissented
+                || (_verifyValidComplianceAddition(user, node, _proofIndices[i])
+                && currentStage == Stages.NODES_ADDING_RESULT_COMMITMENTS)
+            ) {
+                validUserCount++;
+
+                if (nodeForUserState.complianceDataCommitment == 0x0) {
+                    stateForRound[roundIndex]
+                        .nodeStates[node]
+                        .nodeForUserStates[user]
+                        .complianceDataCommitment
+                            = wasCompliantCommitment;
+                }
             }
         }
+        
+        require(validUserCount > 0, 'No valid users to add!');
 
         if (currentStage == Stages.NODES_ADDING_RESULT_COMMITMENTS) {
             // dont count dissent rounds as activity
             // because nodes have an incentive anyways to participate
             // due to not getting offline slashed
-            _increaseActivityCountForNode(node, _users.length);
+            _increaseActivityCountForNode(node, validUserCount);
         }
     }
 
@@ -604,7 +616,8 @@ contract JuriNetworkProxy is Ownable {
             );
 
             require(
-                nodeForUserState.wasAssignedToUser,
+                _getCurrentStateForUser(user).dissented
+                    || nodeForUserState.wasAssignedToUser,
                 'You were not assigned to the user!'
             );
             require(
@@ -670,7 +683,7 @@ contract JuriNetworkProxy is Ownable {
         uint256 bondedStake = bonding.getBondedStakeOfNode(_node);
 
         require(
-            userWorkoutSignature != 0x0),
+            userWorkoutSignature != 0x0,
             "The user did not add any heart rate data!"
         );
 

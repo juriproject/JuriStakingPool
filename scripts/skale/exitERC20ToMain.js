@@ -1,6 +1,6 @@
-const erc20PrivateTestnetJson = require('../../contracts/ERC20_private_skale_testnet.json')
+const erc20PrivateTestnetJson = require('../../contracts/schain_erc20_abis.json')
 
-const { account, getWeb3, privateKey, schainJson, Tx } = require('./config')
+const { account, getWeb3_2, privateKey, schainJson, Tx } = require('./config')
 
 const accountForMainnet = account
 const accountForSchain = account
@@ -8,10 +8,10 @@ const accountForSchain = account
 const tokenManagerAddress = schainJson.token_manager_address
 const tokenManagerABI = schainJson.token_manager_abi
 
-const erc20ABI = erc20PrivateTestnetJson.zhelcoin_abi
-const erc20Address = erc20PrivateTestnetJson.zhelcoin_address
+const erc20ABI = erc20PrivateTestnetJson.eth_erc20_abi
+const erc20Address = erc20PrivateTestnetJson.eth_erc20_address
 
-const web3ForSchain = getWeb3(true)
+const web3ForSchain = getWeb3_2(true)
 
 const exec = async () => {
   const tokenManager = new web3ForSchain.eth.Contract(
@@ -24,7 +24,7 @@ const exec = async () => {
   const approve = contractERC20.methods
     .approve(
       tokenManagerAddress,
-      web3ForSchain.utils.toBN('1000000000000000000')
+      web3ForSchain.utils.toHex(web3ForSchain.utils.toWei('1', 'ether'))
     )
     .encodeABI()
 
@@ -32,11 +32,11 @@ const exec = async () => {
     .exitToMainERC20(
       erc20Address,
       accountForMainnet,
-      web3ForSchain.utils.toBN('1000000000000000000')
+      web3ForSchain.utils.toHex(web3ForSchain.utils.toWei('1', 'ether'))
     )
     .encodeABI()
 
-  const nonce = await web3ForSchain.eth.getTransactionCount(accountForSchain)
+  let nonce = await web3ForSchain.eth.getTransactionCount(accountForSchain)
   const rawTxApprove = {
     from: accountForSchain,
     nonce: '0x' + nonce.toString(16),

@@ -16,7 +16,7 @@ function truffleConfig({
   urlSkaleMain = 'http://134.209.56.46:1919',
   urlSkaleSide = 'http://104.248.79.40:8057',
   urlDevelopment = 'localhost',
-  portDevelopment = 8545,
+  portDevelopment = 7545,
 } = {}) {
   assert(mnemonic, 'The mnemonic has not been provided')
 
@@ -36,8 +36,8 @@ function truffleConfig({
       development: {
         host: urlDevelopment,
         port: portDevelopment,
-        gasPrice: 0x1,
-        gas: 0x1fffffffffffff,
+        gasPrice: 0,
+        gas: 50000000,
         network_id: '*',
       },
       mainnet: {

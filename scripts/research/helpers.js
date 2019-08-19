@@ -58,13 +58,13 @@ const addUserHeartRateFiles = async () => {
     const fileName = `userHeartrateDataTest-${Date.now()}`
     const fileBuffer = Buffer.from(`Hello World-${i}`)
 
-    const storedFilePath = await fileStorage.uploadFile(
+    /* const storedFilePath = await fileStorage.uploadFile(
       user.address,
       fileName,
       fileBuffer,
       user.privateKey
-    )
-    // const storedFilePath = `${user.address.slice(2)}\\${fileName}`
+    ) */
+    const storedFilePath = `${user.address.slice(2)}\\${fileName}`
 
     const modifiedFilePath = storedFilePath.replace('\\', '/')
     fileStoragePaths.push(modifiedFilePath)
@@ -96,4 +96,9 @@ const addUserHeartRateFiles = async () => {
   return fileStoragePaths
 }
 
-module.exports = { addUserHeartRateFiles, sendTx, overwriteLog }
+const filterAsync = (array, filter) =>
+  Promise.all(array.map(entry => filter(entry))).then(bits =>
+    array.filter(() => bits.shift())
+  )
+
+module.exports = { addUserHeartRateFiles, filterAsync, sendTx, overwriteLog }

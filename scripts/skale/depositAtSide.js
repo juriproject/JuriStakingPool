@@ -1,6 +1,6 @@
 const {
   account,
-  getWeb3,
+  getWeb3_2,
   privateKey,
   privateTestnetJson,
   schainID,
@@ -10,7 +10,7 @@ const {
 const exec = async () => {
   const depositBoxAddress = privateTestnetJson.deposit_box_address
   const abi = privateTestnetJson.deposit_box_abi
-  const web3 = getWeb3(true)
+  const web3 = getWeb3_2(true)
 
   const contract = new web3.eth.Contract(abi, depositBoxAddress)
   const deposit = contract.methods.deposit(schainID, account).encodeABI()

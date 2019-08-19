@@ -81,7 +81,6 @@ const itRunsStakingPoolWithOracleRoundCorrectly = async addresses => {
         pool,
         poolStakes,
         poolUsers,
-        proxyMock,
         token: daiToken,
       })
     })
