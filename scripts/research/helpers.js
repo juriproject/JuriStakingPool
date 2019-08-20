@@ -51,6 +51,10 @@ const addUserHeartRateFiles = async () => {
 
   const fileStoragePaths = []
 
+  console.log({
+    users: users.map(({ address }) => address),
+  })
+
   for (let i = 0; i < users.length; i++) {
     overwriteLog(`Upload heart rate file for user ${i}...`)
 
@@ -101,4 +105,12 @@ const filterAsync = (array, filter) =>
     array.filter(() => bits.shift())
   )
 
-module.exports = { addUserHeartRateFiles, filterAsync, sendTx, overwriteLog }
+const sleep = require('util').promisify(setTimeout)
+
+module.exports = {
+  addUserHeartRateFiles,
+  filterAsync,
+  sendTx,
+  sleep,
+  overwriteLog,
+}
