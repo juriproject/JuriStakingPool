@@ -22,14 +22,17 @@ const runRounds = async () => {
   const juriTokenAddress = await getJuriTokenAddress()
   const JuriTokenContract = await getJuriTokenContract()
 
-  const wasCompliantData = [false, false, false, false, false, false]
+  const NODE_COUNT = 6
+  const USER_COUNT = 20
 
-  const notRevealingConfig = [false, true, false, false, false, false]
-  const incorrectResultConfig = [false, false, false, false, false, false]
-  const offlineConfig = [false, false, false, false, false, false]
-  const incorrectDissentConfig = [false, false, false, false, false, false]
+  const wasCompliantData = new Array(USER_COUNT).fill(false)
 
-  for (let nodeIndex = 0; nodeIndex < 6; nodeIndex++) {
+  const notRevealingConfig = new Array(NODE_COUNT).fill(false)
+  const incorrectResultConfig = new Array(NODE_COUNT).fill(false)
+  const offlineConfig = new Array(NODE_COUNT).fill(false)
+  const incorrectDissentConfig = new Array(NODE_COUNT).fill(false)
+
+  for (let nodeIndex = 0; nodeIndex < NODE_COUNT; nodeIndex++) {
     runRound({
       bondingAddress,
       BondingContract,

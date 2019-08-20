@@ -2,12 +2,23 @@ const waitForNextStage = require('./waitForNextStage')
 const sendCommitments = require('./sendCommitments')
 const sendReveals = require('./sendReveals')
 
-const runDissentRound = async ({ dissentedUsers, wasCompliantData }) => {
+const runDissentRound = async ({
+  dissentedUsers,
+  from,
+  isMovingStage,
+  isSendingResults,
+  key,
+  myJuriNodeAddress,
+  myJuriNodePrivateKey,
+  nodeIndex,
+  uniqUsers,
+  wasCompliantData,
+}) => {
   let randomNumbers
 
   // STAGE 5.1
 
-  if (dissentedUsers.length > 0) {
+  if (isSendingResults) {
     console.log(`Sending dissent commitments... (node ${nodeIndex})`)
     randomNumbers = (await sendCommitments({
       users: dissentedUsers,
@@ -24,7 +35,7 @@ const runDissentRound = async ({ dissentedUsers, wasCompliantData }) => {
   await waitForNextStage({ from, key, isMovingStage })
 
   // STAGE 5.2
-  if (dissentedUsers.length > 0) {
+  if (isSendingResults) {
     const dissentWasCompliantData = dissentedUsers
       .map(user => uniqUsers.indexOf(user))
       .filter(index => index >= 0)

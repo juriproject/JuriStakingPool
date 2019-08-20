@@ -184,6 +184,7 @@ contract JuriNetworkProxy is Ownable {
         dissentedUsers = new address[](0);
         // nodeVerifierCount = bonding.totalNodesCount(roundIndex).div(3); // TODO
     
+        // maybe also count only active nodes
         // https://juriproject.slack.com/archives/CHKB3D1GF/p1565926038000200
         nodeVerifierCount = bonding.stakingNodesAddressCount(roundIndex).div(3);
         totalJuriFees = juriFeesToken.balanceOf(address(this));
@@ -331,6 +332,8 @@ contract JuriNetworkProxy is Ownable {
             !_getCurrentStateForUser(_user).dissented,
             "User was already dissented!"
         );
+
+        // TODO only allow if node gave different previous result ?
 
         stateForRound[roundIndex].userStates[_user].complianceDataBeforeDissent
             = _getCurrentStateForUser(_user).userComplianceData;

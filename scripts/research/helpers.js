@@ -51,10 +51,6 @@ const addUserHeartRateFiles = async () => {
 
   const fileStoragePaths = []
 
-  console.log({
-    users: users.map(({ address }) => address),
-  })
-
   for (let i = 0; i < users.length; i++) {
     overwriteLog(`Upload heart rate file for user ${i}...`)
 
@@ -78,10 +74,11 @@ const addUserHeartRateFiles = async () => {
     )).toString()
     console.log({ modifiedFilePath, status }) */
 
-    const userWorkoutSignature =
+    const userWorkoutSignature = (
       '0x' +
       i +
-      '00000000000000000000000000000000f726c6448656c6c6f576f726c642100'
+      '000000000000000000000000000000f726c6448656c6c6f576f726c642100'
+    ).slice(0, 64)
 
     await sendTx({
       data: NetworkProxyContract.methods

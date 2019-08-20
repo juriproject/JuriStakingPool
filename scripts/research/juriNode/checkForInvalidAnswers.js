@@ -5,6 +5,7 @@ const checkForInvalidAnswers = async ({
   bondingAddress,
   roundIndex,
   users,
+  isSendingIncorrectDissent,
   wasCompliantData,
   myJuriNodeAddress,
   myJuriNodePrivateKey,
@@ -24,9 +25,10 @@ const checkForInvalidAnswers = async ({
       .call()
 
     if (
-      wasAssignedToUser &&
-      parseInt(acceptedAnswer) >= 0 !== wasCompliantData[i] &&
-      !isDissented
+      (wasAssignedToUser && isSendingIncorrectDissent) ||
+      (wasAssignedToUser &&
+        parseInt(acceptedAnswer) >= 0 !== wasCompliantData[i] &&
+        !isDissented)
       // = 0 because 0 is considered a compliant user (when in doubt, give user the benefit)
     ) {
       try {

@@ -23,8 +23,10 @@ const findAllIncorrectResultNodes = async ({
             .call({ from: bondingAddress })
         ) >= 0
 
-      if (givenAnswer !== acceptedAnswer)
+      if (givenAnswer !== acceptedAnswer) {
         incorrectResultNodes.push({ toSlash: node, user })
+        break
+      }
     }
   }
 

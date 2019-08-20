@@ -1,5 +1,7 @@
 const BN = require('bn.js')
 
+const { users } = require('../scripts/research/accounts')
+
 const ERC20Mintable = artifacts.require('./lib/ERC20Mintable.sol')
 const JuriTokenMock = artifacts.require('./JuriTokenMock.sol')
 const JuriNetworkProxy = artifacts.require('./JuriNetworkProxy.sol')
@@ -75,11 +77,9 @@ module.exports = deployer => {
       maxTotalStake,
       juriAddress
     )
-    const pool1Users = [
-      '0x7E0c6B2bE8010CcaB4F3C93CD34CD60E6582b21f',
-      '0x411fcF9AaB9F516cEaD0e6826A57775E23f19f5a',
-      '0xE3a58b4778E5B171249031c3b4defa6e8f58722c',
-    ]
+    const pool1Users = users
+      .slice(0, users.length / 2)
+      .map(({ address }) => address)
     await stakingContract1.insertUsers(pool1Users)
 
     const stakingContract2 = await deployer.deploy(
@@ -96,11 +96,10 @@ module.exports = deployer => {
       maxTotalStake,
       juriAddress
     )
-    const pool2Users = [
-      '0x26dd0efBa29886B71bDa2117C205aA6db2501973',
-      '0xab7F39f99d7aECc2E1516bd0c20c1204C21a0FfD',
-      '0x4eD79fa3348fEE0ffa3B0213B701daC561F364DA',
-    ]
+
+    const pool2Users = users
+      .slice(users.length / 2)
+      .map(({ address }) => address)
     await stakingContract2.insertUsers(pool2Users)
 
     await networkProxy.registerJuriStakingPool(stakingContract1.address)

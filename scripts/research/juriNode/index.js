@@ -7,6 +7,7 @@ const checkForInvalidAnswers = require('./checkForInvalidAnswers')
 const getAssignedUsersIndexes = require('./getAssignedUsersIndexes')
 const moveToNextStage = require('./moveToNextStage')
 const retrieveAssignedUsers = require('./retrieveAssignedUsers')
+const runDissentRound = require('./runDissentRound')
 const sendCommitments = require('./sendCommitments')
 const sendReveals = require('./sendReveals')
 const waitForNextStage = require('./waitForNextStage')
@@ -28,6 +29,10 @@ const runRound = async ({
 }) => {
   const from = myJuriNodeAddress
   const key = myJuriNodePrivateKey
+
+  const complianceData = isSendingIncorrectResult
+    ? wasCompliantData.map(wasCompliant => !wasCompliant)
+    : wasCompliantData
 
   /* console.log({
     nodeIndex,
@@ -55,7 +60,7 @@ const runRound = async ({
     myJuriNodeAddress,
     myJuriNodePrivateKey,
     nodeIndex,
-    wasCompliantData,
+    wasCompliantData: complianceData,
   })
   console.log(`Sent commitments (node ${nodeIndex})!`)
 
@@ -77,7 +82,7 @@ const runRound = async ({
       users: finishedAssignedUsersIndexes.map(i => assignedUsers[i]),
       randomNumbers: finishedAssignedUsersIndexes.map(i => randomNumbers[i]),
       wasCompliantData: finishedAssignedUsersIndexes.map(
-        i => wasCompliantData[i]
+        i => complianceData[i]
       ),
       isDissent: false,
       myJuriNodeAddress,
@@ -95,9 +100,10 @@ const runRound = async ({
   console.log(`Dissenting to invalid answers... (node ${nodeIndex})`)
   await checkForInvalidAnswers({
     bondingAddress,
+    isSendingIncorrectDissent,
     roundIndex,
     users: assignedUsers,
-    wasCompliantData,
+    wasCompliantData: complianceData,
     myJuriNodeAddress,
     myJuriNodePrivateKey,
     nodeIndex,
@@ -136,7 +142,18 @@ const runRound = async ({
   })
 
   if (allDissentedUsers.length > 0) {
-    await runDissentRound({ dissentedUsers, wasCompliantData })
+    await runDissentRound({
+      dissentedUsers,
+      wasCompliantData: complianceData,
+      from,
+      key,
+      isMovingStage,
+      isSendingResults: !isOffline && dissentedUsers.length > 0,
+      myJuriNodeAddress,
+      myJuriNodePrivateKey,
+      nodeIndex,
+      uniqUsers,
+    })
   } else {
     if (isMovingStage) await moveToNextStage({ from, key })
 
@@ -152,7 +169,8 @@ const runRound = async ({
         .call({ from: bondingAddress })).toString(),
     })
   }
-  console.log({ nodeIndex, resultsBefore, resultsAfter })
+
+  if (isMovingStage) console.log({ nodeIndex, resultsBefore, resultsAfter })
 
   console.log(`Slashing dishonest nodes... (node ${nodeIndex})`)
   await slashDishonestNodes({

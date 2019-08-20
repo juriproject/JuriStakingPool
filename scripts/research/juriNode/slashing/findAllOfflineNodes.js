@@ -21,7 +21,10 @@ const findAllOfflineNodes = async ({
           .getUserComplianceDataCommitment(roundIndex, node, user)
           .call()
 
-        if (commitment == 0x0) offlineNodes.push({ toSlash: node, user })
+        if (commitment == 0x0) {
+          offlineNodes.push({ toSlash: node, user })
+          break
+        }
       }
     }
   }

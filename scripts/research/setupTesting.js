@@ -148,13 +148,10 @@ const exec = async () => {
   const juriTokenAddress = await getJuriTokenAddress()
   const JuriTokenContract = await getJuriTokenContract()
 
-  /* const accounts = new Array(10)
+  /* const accounts = new Array(14)
     .fill(0)
     .map((_, i) => web3.eth.accounts.create(`${Date.now().toString()}${i}`))
-    .map(account => ({
-      ...account,
-      privateKeyBuffer: Buffer.from(account.privateKey.slice(2), 'hex'),
-    })) */
+    .map(({ address, privateKey }) => ({ address, privateKey })) */
 
   await runSetup({
     bondingAddress,

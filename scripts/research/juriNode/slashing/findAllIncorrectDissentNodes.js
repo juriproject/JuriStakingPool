@@ -22,8 +22,10 @@ const findAllIncorrectDissentNodes = async ({
         .getGivenNodeResult(roundIndex, node, user)
         .call()
 
-      if (hasDissented && previousAnswer === acceptedAnswer)
+      if (hasDissented && parseInt(previousAnswer) >= 0 === acceptedAnswer) {
         incorrectDissentNodes.push({ toSlash: node, user })
+        break
+      }
     }
   }
 

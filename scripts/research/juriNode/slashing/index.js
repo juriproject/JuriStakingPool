@@ -44,6 +44,13 @@ const slashDishonestNodes = async ({
     notRevealedNodes: notRevealedNodes.map(({ toSlash }) =>
       allNodes.indexOf(toSlash)
     ),
+    offlineNodes: offlineNodes.map(({ toSlash }) => allNodes.indexOf(toSlash)),
+    incorrectResultNodes: incorrectResultNodes.map(({ toSlash }) =>
+      allNodes.indexOf(toSlash)
+    ),
+    incorrectDissentNodes: incorrectDissentNodes.map(({ toSlash }) =>
+      allNodes.indexOf(toSlash)
+    ),
   })
 
   for (let i = 0; i < notRevealedNodes.length; i++) {

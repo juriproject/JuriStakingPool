@@ -17,8 +17,10 @@ const findAllNotRevealedNodes = async ({ allNodes, allUsers, roundIndex }) => {
         !(await NetworkProxyContract.methods
           .getHasRevealed(roundIndex, node, user)
           .call())
-      )
+      ) {
         notRevealedNodes.push({ toSlash: node, user })
+        break
+      }
     }
   }
 
