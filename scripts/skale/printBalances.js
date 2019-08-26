@@ -8,8 +8,8 @@ const accountForSchain = account
 
 const depositBoxAddress = privateTestnetJson.deposit_box_address
 const tokenManagerAddress = schainJson.token_manager_address
-const erc20ABI = erc20PrivateTestnetJson.zhelcoin_abi
-const erc20Address = erc20PrivateTestnetJson.zhelcoin_address
+const erc20ABI = schainJson.zhelcoin_abi
+const erc20Address = schainJson.zhelcoin_address
 
 const web3ForMainnet = getWeb3(false)
 const web3ForSchain = getWeb3(true)

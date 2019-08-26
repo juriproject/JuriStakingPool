@@ -1,10 +1,7 @@
 // const fs = require('fs')
-const erc20PrivateTestnetJson = require('../../contracts/schain_erc20_abis.json')
-
 const {
   account,
   getWeb3,
-  getWeb3_2,
   privateKey,
   privateTestnetJson,
   schainID,
@@ -21,11 +18,11 @@ const depositBoxABI = privateTestnetJson.deposit_box_abi
 const tokenManagerAddress = schainJson.token_manager_address
 const tokenManagerABI = schainJson.token_manager_abi
 
-const erc20ABI = erc20PrivateTestnetJson.eth_erc20_abi
-const erc20Address = erc20PrivateTestnetJson.eth_erc20_address
+const erc20ABI = schainJson.eth_erc20_abi
+const erc20Address = schainJson.eth_erc20_address
 
 const web3ForMainnet = getWeb3(false)
-const web3ForSchain = getWeb3_2(true)
+const web3ForSchain = getWeb3(true)
 
 const exec = async () => {
   const depositBox = new web3ForMainnet.eth.Contract(

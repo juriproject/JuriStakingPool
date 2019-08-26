@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-const { account, getWeb3_2, privateKey, schainJson, Tx } = require('./config')
+const { account, getWeb3, privateKey, schainJson, Tx } = require('./config')
 
 const exec = async () => {
-  const web3 = getWeb3_2(false)
+  const web3 = getWeb3(false)
   const tokenManagerAddress = schainJson.token_manager_address
   const ABI = schainJson.token_manager_abi
 
