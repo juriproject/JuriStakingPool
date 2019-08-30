@@ -19,11 +19,11 @@ const PoolAbi = require('../../build/contracts/JuriStakingPoolWithOracle').abi
 
 const { nodes, users } = require('./accounts')
 
-// const web3 = getWeb3(false)
-// const networkProxyAddress = '0x87558be0F69CDbF662b859EE251C0C455De14154'
+const web3 = getWeb3(false)
+const networkProxyAddress = '0xa6550E237F516C880FA35b990b0F089460392e96'
 
-const web3 = getLocalWeb3()
-const networkProxyAddress = '0xf204a4Ef082f5c04bB89F7D5E6568B796096735a'
+// const web3 = getLocalWeb3()
+// const networkProxyAddress = '0xf204a4Ef082f5c04bB89F7D5E6568B796096735a'
 
 const fileStorage = new Filestorage(getWeb3Provider(false), false)
 const { BN } = web3.utils

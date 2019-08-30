@@ -11,6 +11,7 @@ const runDissentRound = async ({
   myJuriNodeAddress,
   myJuriNodePrivateKey,
   nodeIndex,
+  timePerStage,
   uniqUsers,
   wasCompliantData,
 }) => {
@@ -32,7 +33,7 @@ const runDissentRound = async ({
   }
 
   // await sleep(times[timeForDissentCommitmentStage])
-  await waitForNextStage({ from, key, isMovingStage })
+  await waitForNextStage({ from, key, timePerStage, isMovingStage: false })
 
   // STAGE 5.2
   if (isSendingResults) {
@@ -56,7 +57,7 @@ const runDissentRound = async ({
   }
 
   // await sleep(times[timeForDissentRevealStage])
-  await waitForNextStage({ from, key, isMovingStage })
+  await waitForNextStage({ from, key, timePerStage, isMovingStage: false })
 }
 
 module.exports = runDissentRound

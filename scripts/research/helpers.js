@@ -35,7 +35,7 @@ const overwriteLog = msg => {
   process.stdout.write(msg)
 }
 
-const addUserHeartRateFiles = async () => {
+const addUserHeartRateFiles = async maxUserCount => {
   overwriteLog('Moving to users adding heart rate data stage...')
   await sendTx({
     data: NetworkProxyContract.methods
@@ -50,21 +50,22 @@ const addUserHeartRateFiles = async () => {
   process.stdout.write('\n')
 
   const fileStoragePaths = []
+  const userCount = maxUserCount || users.length
 
-  for (let i = 0; i < users.length; i++) {
+  for (let i = 0; i < userCount; i++) {
     overwriteLog(`Upload heart rate file for user ${i}...`)
 
     const user = users[i]
     const fileName = `userHeartrateDataTest-${Date.now()}`
     const fileBuffer = Buffer.from(`Hello World-${i}`)
 
-    /* const storedFilePath = await fileStorage.uploadFile(
+    const storedFilePath = await fileStorage.uploadFile(
       user.address,
       fileName,
       fileBuffer,
       user.privateKey
-    ) */
-    const storedFilePath = `${user.address.slice(2)}\\${fileName}`
+    )
+    // const storedFilePath = `${user.address.slice(2)}\\${fileName}`
 
     const modifiedFilePath = storedFilePath.replace('\\', '/')
     fileStoragePaths.push(modifiedFilePath)
@@ -104,9 +105,14 @@ const filterAsync = (array, filter) =>
 
 const sleep = require('util').promisify(setTimeout)
 
+const parseRevertMessage = error =>
+  JSON.parse(error.slice(error.indexOf('reverted by the EVM') + 20))
+    .revertReason
+
 module.exports = {
   addUserHeartRateFiles,
   filterAsync,
+  parseRevertMessage,
   sendTx,
   sleep,
   overwriteLog,

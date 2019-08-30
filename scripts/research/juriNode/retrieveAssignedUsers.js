@@ -11,7 +11,11 @@ const THRESHOLD = new BN(
   '115792089237316195423570985008687907853269984665640564039457584007913129639936'
 )
 
-const retrieveAssignedUsers = async ({ myJuriNodeAddress, roundIndex }) => {
+const retrieveAssignedUsers = async ({
+  maxUserCount,
+  myJuriNodeAddress,
+  roundIndex,
+}) => {
   const poolAddresses = await NetworkProxyContract.methods
     .getRegisteredJuriStakingPools()
     .call()
@@ -29,7 +33,7 @@ const retrieveAssignedUsers = async ({ myJuriNodeAddress, roundIndex }) => {
     users.push(...poolUsers)
   }
 
-  const uniqUsers = [...new Set(users)]
+  const uniqUsers = [...new Set(users)].slice(0, maxUserCount)
   const assignedUsers = []
 
   for (let i = 0; i < uniqUsers.length; i++) {
@@ -42,7 +46,7 @@ const retrieveAssignedUsers = async ({ myJuriNodeAddress, roundIndex }) => {
     let lowestHash = THRESHOLD
     let lowestIndex = -1
 
-    const bondedTokenAmount = 10000 // TODO
+    const bondedTokenAmount = 100 // TODO
 
     for (let i = 0; i < bondedTokenAmount; i++) {
       const hash = new BN(

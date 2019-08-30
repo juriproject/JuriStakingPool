@@ -1,11 +1,10 @@
 const { NetworkProxyContract, ZERO_ADDRESS } = require('../config')
-const { filterAsync } = require('../helpers')
+const { filterAsync, parseRevertMessage } = require('../helpers')
 
 const slashDishonestNodes = require('./slashing')
 
 const checkForInvalidAnswers = require('./checkForInvalidAnswers')
 const getAssignedUsersIndexes = require('./getAssignedUsersIndexes')
-const moveToNextStage = require('./moveToNextStage')
 const retrieveAssignedUsers = require('./retrieveAssignedUsers')
 const runDissentRound = require('./runDissentRound')
 const sendCommitments = require('./sendCommitments')
@@ -15,10 +14,11 @@ const waitForNextStage = require('./waitForNextStage')
 const runRound = async ({
   bondingAddress,
   BondingContract,
-  isMovingStage,
+  maxUserCount,
   myJuriNodePrivateKey,
   myJuriNodeAddress,
   nodeIndex,
+  timePerStage,
   wasCompliantData,
   failureOptions: {
     isNotRevealing,
@@ -48,6 +48,7 @@ const runRound = async ({
 
   // STAGE 2
   const { assignedUsers, uniqUsers } = await retrieveAssignedUsers({
+    maxUserCount,
     myJuriNodeAddress,
     roundIndex,
   })
@@ -65,7 +66,7 @@ const runRound = async ({
   console.log(`Sent commitments (node ${nodeIndex})!`)
 
   // await sleep(times[timeForCommitmentStage])
-  await waitForNextStage({ from, key, isMovingStage })
+  await waitForNextStage({ from, key, timePerStage, isMovingStage: false })
 
   const finishedAssignedUsersIndexes = await getAssignedUsersIndexes({
     myJuriNodeAddress,
@@ -94,7 +95,7 @@ const runRound = async ({
   }
 
   // await sleep(times[timeForRevealStage])
-  await waitForNextStage({ from, key, isMovingStage })
+  await waitForNextStage({ from, key, timePerStage, isMovingStage: false })
 
   // STAGE 4
   console.log(`Dissenting to invalid answers... (node ${nodeIndex})`)
@@ -111,7 +112,7 @@ const runRound = async ({
   console.log(`Dissented to invalid answers (node ${nodeIndex})!`)
 
   // await sleep(times[timeForDissentStage])
-  await waitForNextStage({ from, key, isMovingStage })
+  await waitForNextStage({ from, key, timePerStage, isMovingStage: false })
 
   const resultsBefore = []
   for (let i = 0; i < uniqUsers.length; i++) {
@@ -135,30 +136,26 @@ const runRound = async ({
         .call()) === ZERO_ADDRESS
   )
 
-  console.log({
+  /* console.log({
     nodeIndex,
     allDissentedUsers,
     dissentedUsers,
-  })
+  }) */
 
-  if (allDissentedUsers.length > 0) {
+  if (allDissentedUsers.length > 0)
     await runDissentRound({
       dissentedUsers,
       wasCompliantData: complianceData,
       from,
       key,
-      isMovingStage,
       isSendingResults: !isOffline && dissentedUsers.length > 0,
       myJuriNodeAddress,
       myJuriNodePrivateKey,
       nodeIndex,
+      timePerStage,
       uniqUsers,
     })
-  } else {
-    if (isMovingStage) await moveToNextStage({ from, key })
-
-    await waitForNextStage({ from, key, isMovingStage })
-  }
+  else await waitForNextStage({ from, key, timePerStage, isMovingStage: false })
 
   const resultsAfter = []
   for (let i = 0; i < uniqUsers.length; i++) {
@@ -170,7 +167,7 @@ const runRound = async ({
     })
   }
 
-  if (isMovingStage) console.log({ nodeIndex, resultsBefore, resultsAfter })
+  if (nodeIndex === 0) console.log({ nodeIndex, resultsBefore, resultsAfter })
 
   console.log(`Slashing dishonest nodes... (node ${nodeIndex})`)
   await slashDishonestNodes({
@@ -212,31 +209,15 @@ const runRound = async ({
   // await moveToNextRound()
 }
 
-const safeRunRound = async ({
-  bondingAddress,
-  BondingContract,
-  isMovingStage,
-  myJuriNodePrivateKey,
-  myJuriNodeAddress,
-  nodeIndex,
-  wasCompliantData,
-  failureOptions,
-}) => {
+const safeRunRound = async params => {
   try {
-    await runRound({
-      bondingAddress,
-      BondingContract,
-      isMovingStage,
-      myJuriNodePrivateKey,
-      myJuriNodeAddress,
-      nodeIndex,
-      wasCompliantData,
-      failureOptions,
-    })
-  } catch (error) {
+    await runRound(params)
+  } catch ({ message }) {
     console.log({
-      nodeIndex,
-      RunRoundError: error.message,
+      nodeIndex: params.nodeIndex,
+      RunRoundError: message.includes('revertReason')
+        ? parseRevertMessage(message)
+        : message,
     })
   }
 }

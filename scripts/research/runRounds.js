@@ -11,9 +11,19 @@ const {
 const runRound = require('./juriNode')
 const setupProxyForNewRound = require('./juriNode/setupProxyForNewRound')
 
-const runRounds = async () => {
-  await setupProxyForNewRound()
+const waitForNextStage = require('./juriNode/waitForNextStage')
 
+const NODE_COUNT = 16
+const USER_COUNT = 16
+const TIME_PER_STAGE = 1000 * 50
+
+const runControllerRound = async ({ from, key, timePerStage }) => {
+  for (let i = 0; i < 6; i++) {
+    await waitForNextStage({ from, key, timePerStage, isMovingStage: true })
+  }
+}
+
+const runRounds = async () => {
   const bondingAddress = await getBondingAddress()
   const BondingContract = await getBondingContract()
 
@@ -22,9 +32,6 @@ const runRounds = async () => {
   const juriTokenAddress = await getJuriTokenAddress()
   const JuriTokenContract = await getJuriTokenContract()
 
-  const NODE_COUNT = 6
-  const USER_COUNT = 20
-
   const wasCompliantData = new Array(USER_COUNT).fill(false)
 
   const notRevealingConfig = new Array(NODE_COUNT).fill(false)
@@ -32,14 +39,33 @@ const runRounds = async () => {
   const offlineConfig = new Array(NODE_COUNT).fill(false)
   const incorrectDissentConfig = new Array(NODE_COUNT).fill(false)
 
-  for (let nodeIndex = 0; nodeIndex < NODE_COUNT; nodeIndex++) {
+  notRevealingConfig[3] = true
+  notRevealingConfig[8] = true
+  incorrectResultConfig[4] = true
+  incorrectResultConfig[9] = true
+  offlineConfig[5] = true
+  offlineConfig[10] = true
+  incorrectDissentConfig[6] = true
+
+  await setupProxyForNewRound(USER_COUNT)
+
+  // Start controller node
+  runControllerRound({
+    timePerStage: TIME_PER_STAGE,
+    from: nodes[0].address,
+    key: nodes[0].privateKeyBuffer,
+  })
+
+  // Start Juri nodes
+  for (let nodeIndex = 1; nodeIndex < NODE_COUNT; nodeIndex++) {
     runRound({
       bondingAddress,
       BondingContract,
-      isMovingStage: nodeIndex === 0,
+      maxUserCount: USER_COUNT,
       myJuriNodeAddress: nodes[nodeIndex].address,
       myJuriNodePrivateKey: nodes[nodeIndex].privateKeyBuffer,
       nodeIndex,
+      timePerStage: TIME_PER_STAGE,
       wasCompliantData,
       failureOptions: {
         isNotRevealing: notRevealingConfig[nodeIndex],

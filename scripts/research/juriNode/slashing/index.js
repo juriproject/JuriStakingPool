@@ -3,7 +3,7 @@ const findAllOfflineNodes = require('./findAllOfflineNodes')
 const findAllIncorrectResultNodes = require('./findAllIncorrectResultNodes')
 const findAllIncorrectDissentNodes = require('./findAllIncorrectDissentNodes')
 
-const { sendTx } = require('../../helpers')
+const { parseRevertMessage, sendTx } = require('../../helpers')
 const { web3 } = require('../../config')
 
 const slashDishonestNodes = async ({
@@ -73,10 +73,8 @@ const slashDishonestNodes = async ({
       console.log(`Successfully slashed not revealed (node ${nodeIndex})!`)
     } catch (error) {
       console.log(
-        `NotRevealSlashError: ${error.message.slice(
-          error.message.indexOf('revert') === -1
-            ? 0
-            : error.message.indexOf('revert')
+        `NotRevealSlashError: ${parseRevertMessage(
+          error.message
         )} (node ${nodeIndex})`
       )
     }
@@ -102,10 +100,8 @@ const slashDishonestNodes = async ({
       console.log(`Successfully slashed for offline (node ${nodeIndex})!`)
     } catch (error) {
       console.log(
-        `OfflineSlashError: ${error.message.slice(
-          error.message.indexOf('revert') === -1
-            ? 0
-            : error.message.indexOf('revert')
+        `OfflineSlashError: ${parseRevertMessage(
+          error.message
         )} (node ${nodeIndex})`
       )
     }
@@ -133,10 +129,8 @@ const slashDishonestNodes = async ({
       )
     } catch (error) {
       console.log(
-        `IncorrectResultSlashError: ${error.message.slice(
-          error.message.indexOf('revert') === -1
-            ? 0
-            : error.message.indexOf('revert')
+        `IncorrectResultSlashError: ${parseRevertMessage(
+          error.message
         )} (node ${nodeIndex})`
       )
     }
@@ -164,10 +158,8 @@ const slashDishonestNodes = async ({
       )
     } catch (error) {
       console.log(
-        `IncorrectDissentSlashError: ${error.message.slice(
-          error.message.indexOf('revert') === -1
-            ? 0
-            : error.message.indexOf('revert')
+        `IncorrectDissentSlashError: ${parseRevertMessage(
+          error.message
         )} (node ${nodeIndex})`
       )
     }

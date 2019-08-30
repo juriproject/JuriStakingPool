@@ -8,7 +8,7 @@ const {
 } = require('../config')
 const { addUserHeartRateFiles, overwriteLog, sendTx } = require('../helpers')
 
-const setupProxyForNewRound = async () => {
+const setupProxyForNewRound = async userCount => {
   overwriteLog('Increase round index...')
   await sendTx({
     data: NetworkProxyContract.methods.debugIncreaseRoundIndex().encodeABI(),
@@ -20,7 +20,7 @@ const setupProxyForNewRound = async () => {
   overwriteLog('Increased round index!')
   process.stdout.write('\n')
 
-  await addUserHeartRateFiles()
+  await addUserHeartRateFiles(userCount)
 
   let currentStage = await NetworkProxyContract.methods.currentStage().call()
 

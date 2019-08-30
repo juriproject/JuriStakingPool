@@ -316,36 +316,60 @@ contract JuriNetworkProxy is Ownable {
         );
     }
 
-    function dissentToAcceptedAnswer(address _user)
+    function dissentToAcceptedAnswers(address[] memory _users)
         public
         checkIfNextStage
         atStage(Stages.DISSENTING_PERIOD)
     {
         address node = msg.sender;
+        uint256 usersToDissentCount = 0;
+
+        require(_users.length > 0, 'Users array cannot be empty!');
+
+        for (uint256 i = 0; i < _users.length; i++) {
+            address user = _users[i];
+
+            require(
+                _getCurrentStateForNodeForUser(node, user).wasAssignedToUser,
+                'You were not assigned to the given user!'
+            );
+
+            if (!_getCurrentStateForUser(user).dissented) {
+                usersToDissentCount++;
+            }
+
+            // TODO only allow if node gave different previous result ?
+        }
 
         require(
-            _getCurrentStateForNodeForUser(node, _user).wasAssignedToUser,
-            'You were not assigned to the given user!'
+            usersToDissentCount > 0,
+            "Users were already dissented!"
         );
+        address[] memory usersToDissent = new address[](usersToDissentCount);
+        uint256 usersToDissentIndex = 0;
 
-        require(
-            !_getCurrentStateForUser(_user).dissented,
-            "User was already dissented!"
-        );
+        for (uint256 i = 0; i < _users.length; i++) {
+            if (!_getCurrentStateForUser(_users[i]).dissented) {
+                usersToDissent[usersToDissentIndex] = _users[i];
+                usersToDissentIndex++;
+            }
+        }
 
-        // TODO only allow if node gave different previous result ?
+        for (uint256 i = 0; i < usersToDissent.length; i++) {
+            address user = usersToDissent[i];
 
-        stateForRound[roundIndex].userStates[_user].complianceDataBeforeDissent
-            = _getCurrentStateForUser(_user).userComplianceData;
-        stateForRound[roundIndex]
-            .userStates[_user]
-            .dissented = true;
-        stateForRound[roundIndex]
-            .nodeStates[node]
-            .nodeForUserStates[_user]
-            .hasDissented = true;
+            stateForRound[roundIndex].userStates[user].complianceDataBeforeDissent
+                = _getCurrentStateForUser(user).userComplianceData;
+            stateForRound[roundIndex]
+                .userStates[user]
+                .dissented = true;
+            stateForRound[roundIndex]
+                .nodeStates[node]
+                .nodeForUserStates[user]
+                .hasDissented = true;
 
-        dissentedUsers.push(_user);
+            dissentedUsers.push(user);
+        }
     }
 
     function retrieveRoundJuriFees(uint256 _roundIndex) public {

@@ -14,7 +14,7 @@ function truffleConfig({
   urlRinkeby = 'https://rinkeby.infura.io/',
   urlMainnet = 'https://mainnet.infura.io',
   urlSkaleMain = 'http://134.209.56.46:1919',
-  urlSkaleSide = 'http://104.248.79.40:8057',
+  urlSkaleSide = 'http://165.22.133.157:10101',
   urlDevelopment = 'localhost',
   portDevelopment = 7545,
 } = {}) {
